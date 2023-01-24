@@ -20,7 +20,7 @@ local health = require(modules:WaitForChild("Health"))
 
 local camera = workspace.CurrentCamera
 local gui = script.Parent.GameGui
-local map = workspace:WaitForChild("GrassLand")
+local map = workspace.Maps:WaitForChild("GrassLand")
 local ballpark = map:WaitForChild("Ballpark")
 local guiData = workspace:WaitForChild("GUIData")
 

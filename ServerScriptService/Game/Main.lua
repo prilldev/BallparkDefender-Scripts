@@ -3,7 +3,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local mob = require(ServerScriptService.Modules.Mob)
 local defender = require(ServerScriptService.Modules.Defender)
 
-local map = workspace.GrassLand
+local map = workspace.Maps.GrassLand
 local guiData = workspace.GUIData
 
 local gameOver = false
