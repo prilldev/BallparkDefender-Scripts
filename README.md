@@ -1,3 +1,5 @@
+<base target="_blank">
+
 # Roblox-BallparkDefender
 
 ## Summary
