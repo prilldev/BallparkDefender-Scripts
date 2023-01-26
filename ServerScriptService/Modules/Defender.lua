@@ -1,5 +1,4 @@
 --Services
-local PhysicsService = game:GetService(("PhysicsService"))
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -153,11 +152,16 @@ requestDefender.OnServerInvoke = defender.CheckSpawn --wire up the above Functio
 
 -- Equip Defender with a new/upgraded Weapon
 function defender.EquipWeapon(player, currentDefender, weapon)
-	-- *** IMPORTANT: For a Weapon to "Weld" properly to the Character when "Humanoid:EquipTool is called, the weapon should:
-	-- *** -- 1) Should be a "Tool"
-	-- *** -- 2) Have a Part named "Handle" that is a direct Child to the Tool
-	-- *** -- 3) Have a Weld created between the Handle and the Tool's grip area  (use "RigEdit Lite" plug-in or similar)
-	-- *** 		 ...and (perhaps most importantly) the Handle should be in the same orientation as the Tool (Weapon)
+	--[[ 
+	*** IMPORTANT: For a Weapon to "Weld" properly to the Character in the proper position when "Humanoid:EquipTool" is called, 
+	*** The "weapon/tool" variable should:
+	*** 1) Be an object of type "Tool"
+	*** 2) Have a Part named "Handle" that is a direct Child to the Tool (add one near the grip and make invisible if there isn't one)
+	*** 3) Have a Weld created between the "Handle" part and the Tool's grip area
+    ***    (use "RigEdit Lite" plug-in or with "Weld" script)
+	*** 4) And the "Handle" part should be in the same orientation as the Tool/Weapon 
+	***    (use "Tool Grip Editor" plugin, done manually in Workspace, or repositioned in the "Weld" script)
+	--]]
 	
 	if currentDefender then
 		print("Attempting to Equip " .. currentDefender.Name .. " with " .. weapon.Name)

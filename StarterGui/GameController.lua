@@ -1,33 +1,38 @@
+-- Services
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- Player
 local localPlayer = Players.LocalPlayer
 local playerGold = localPlayer.leaderstats:WaitForChild("Gold")
 
 --NOTE: The "Squad" folder is where the game's Defender characters are located
 local squadFolder = ReplicatedStorage:WaitForChild("Squad")
 
+-- Remove Events
 local events = ReplicatedStorage:WaitForChild("Events")
 local spawnDefenderEvent = events:WaitForChild("SpawnDefender")
 local equipDefenderEvent = events:WaitForChild("EquipDefender")
-
+-- Remote Functions
 local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
 local requestDefender = remoteFunctions:WaitForChild("RequestDefender")
 
+-- Module script references
 local modules = ReplicatedStorage:WaitForChild("Modules")
 local health = require(modules:WaitForChild("Health"))
 
+-- Visual workspace variables
 local camera = workspace.CurrentCamera
 local gui = script.Parent.GameGui
 local map = workspace.Maps:WaitForChild("GrassLand")
 local ballpark = map:WaitForChild("Ballpark")
 local guiData = workspace:WaitForChild("GUIData")
 
+-- Misc control variables
 local hoveredInstance = nil
 local selectedDefender = nil
-
 local spawnDefender = nil
 local canPlace = false
 local rotation = 0
@@ -35,45 +40,42 @@ local bballPostion = nil
 local placedDefenderCt = 0
 local maxDefenderCt = 10
 local defenderIsMoving = false
+local lastTouch = tick() -- for mobile support
 
-local lastTouch = tick()
 
-
+-- ** Initial GUI Setup
 local function SetupGui()
+	
+	-- attach "Health bar" guis to the Ballpark 
 	health.Setup(ballpark, gui.Info.Health)
-
+	
+	-- attach "Health bar" guis to all the Mob "children" as they are added/spawned
 	workspace.Mobs.ChildAdded:Connect(function(mob)
 		health.Setup(mob)
 	end)
-
+	
+	-- Connect "Changed" event of Info Message bar whenver Message changes
 	guiData.Message.Changed:Connect(function(change)
 		gui.Info.Message.Text = change
 	end)
-
+	
+	-- Connect "Changed" event of Inning (Wave) Message bar each time Inning/Wave is changing
 	guiData.Inning.Changed:Connect(function(change)
 		gui.Info.Stats.Inning.Text = "Inning: " .. change
 	end)
-
+	
+	-- Connect "Changed" even of playerGold to the Info bar's Gold text box
 	playerGold.Changed:Connect(function(change)
 		gui.Info.Stats.Gold.Text = "$" .. playerGold.Value
 	end)
+	-- Initialize Gold text box and beginning of the game
 	gui.Info.Stats.Gold.Text = "$" .. playerGold.Value
+	
 end
-SetupGui()
+SetupGui() -- call above Setup function OnLoad of the Game
 
-local function MouseRaycast(blacklistTable)
-	local mousePosition = UserInputService:GetMouseLocation()	
-	local mouseRay = camera:ViewportPointToRay(mousePosition.X, mousePosition.Y)
 
-	local rcParams = RaycastParams.new()
-	rcParams.FilterType = Enum.RaycastFilterType.Blacklist
-	rcParams.FilterDescendantsInstances = blacklistTable
-
-	local raycastResult = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 1000, rcParams)
-
-	return raycastResult
-end
-
+-- ** Remove Placeholder for Defender after they're placed (or if canceled/menu is clicked again)
 local function RemovePlaceholderDefender()
 	if spawnDefender then
 		--print("Destroying... ", spawnDefender.Name)
@@ -84,10 +86,11 @@ local function RemovePlaceholderDefender()
 	end
 end
 
+-- ** Add Placeholder for the Defender/Character being placed as the mouse moves around the screen (before placement)
 local function AddPlaceholderDefender(name)
 
 	if (defenderIsMoving and selectedDefender) then
-		
+
 		--Existing Defender is being Moved!
 		spawnDefender = selectedDefender
 		selectedDefender = nil
@@ -95,7 +98,8 @@ local function AddPlaceholderDefender(name)
 		for i, object in ipairs(spawnDefender:GetDescendants()) do
 			if object:IsA("BasePart") then
 				object.CollisionGroup = "Defender"
-				object.Material = Enum.Material.ForceField
+				--object.Material = Enum.Material.ForceField
+				object.Transparency = 0.5
 			end
 		end
 
@@ -112,7 +116,8 @@ local function AddPlaceholderDefender(name)
 			for i, object in ipairs(spawnDefender:GetDescendants()) do
 				if object:IsA("BasePart") then
 					object.CollisionGroup = "Defender"
-					object.Material = Enum.Material.ForceField
+					--object.Material = Enum.Material.ForceField
+					object.Transparency = 0.5
 				end
 			end
 		else
@@ -120,9 +125,9 @@ local function AddPlaceholderDefender(name)
 		end
 	end
 
-
 end
 
+-- ** Color Placeholder as it's moving around the screen (Green for valid placement/Red for invalid placement)
 local function ColorPlaceholderDefender(color)
 	for i, object in ipairs(spawnDefender:GetDescendants()) do
 		if object:IsA("BasePart") then
@@ -131,7 +136,17 @@ local function ColorPlaceholderDefender(color)
 	end
 end
 
+
+-- ** LeftMenu Frame's "Squad" button Text
 gui.LeftMenu.ShowSquad.Text = "Squad: " .. placedDefenderCt .. "/" .. maxDefenderCt
+-- ** Setup of "ShowSquad" Activated Event (Shows/Hides the above "DefendersList" Frame)
+gui.LeftMenu.ShowSquad.Activated:Connect(function()
+	gui.DefendersList.Visible = not gui.DefendersList.Visible
+	RemovePlaceholderDefender() --remove any Defender placeholders that may not have been placed before accessing the menu again
+end)
+
+
+-- ** Setup/Populate "DefendersList" frame on the Left (invisible by default)
 for i, defender in pairs(squadFolder:GetChildren()) do
 	if defender:IsA("Model") then
 		local button = gui.DefendersList.TemplateButton:Clone()
@@ -165,11 +180,7 @@ for i, defender in pairs(squadFolder:GetChildren()) do
 end
 
 
-gui.LeftMenu.ShowSquad.Activated:Connect(function()
-	gui.DefendersList.Visible = not gui.DefendersList.Visible
-	RemovePlaceholderDefender() --remove any Defender placeholders that may not have been placed before accessing the menu again
-end)
-
+-- ** Spawn the Defender that's currently in the "DefenderPlaceholder" (global 'spawnDefender' object variable)
 local function SpawnDefender()
 	if canPlace then
 		local defenderToMove = nil
@@ -190,6 +201,7 @@ local function SpawnDefender()
 	end
 end
 
+-- ** Toggle Defender Info when a Placed Defender is selected in the Game (not the DefendersList)
 local function toggleDefenderInfo()
 
 	if selectedDefender then
@@ -207,6 +219,7 @@ local function toggleDefenderInfo()
 	end
 end
 
+-- ** Selected Defender's Equip/Upgrade Weapon button is Activated
 gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 	local msg
 	if selectedDefender then
@@ -258,7 +271,7 @@ gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 
 end)
 
-
+-- ** Selected Defender's Move button is Activated
 gui.SelectedDefender.Action.MoveButton.Activated:Connect(function()
 	if selectedDefender then
 		gui.SelectedDefender.Visible = false --hide gui on click
@@ -267,6 +280,27 @@ gui.SelectedDefender.Action.MoveButton.Activated:Connect(function()
 	end
 end)
 
+
+-- ***************************************************************************
+-- *******  IMPORTANT Re-Usable "GameControl" functions below ****************
+
+-- ** Mouse Raycast function (determines where mouse is in 3D on the screen... used for moving/placing Characters)
+-- ** (called by the RunService:RenderStepped event below)
+-- ** blacklistTable: An optional {table} of "blacklisted" items for the Raycast to ignore
+local function MouseRaycast(blacklistTable)
+	local mousePosition = UserInputService:GetMouseLocation()	
+	local mouseRay = camera:ViewportPointToRay(mousePosition.X, mousePosition.Y)
+
+	local rcParams = RaycastParams.new()
+	rcParams.FilterType = Enum.RaycastFilterType.Blacklist
+	rcParams.FilterDescendantsInstances = blacklistTable
+
+	local raycastResult = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 1000, rcParams)
+
+	return raycastResult
+end
+
+-- ***** Connect "InputBegan" Event to handle all Mouse/Touch Input *****
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then
 		return
@@ -309,9 +343,19 @@ UserInputService.InputBegan:Connect(function(input, processed)
 
 end)
 
+
+-- ***** Connect "RenderStepped" Event that runs "every split second" to determine what Mouse/Touch is Hovering over in the 3D roblox world *****
 RunService.RenderStepped:Connect(function()
+	
+	-- Get current 3D Raycast result (with a {table} of "blacklisted" items to ignore). 
+	-- In this case the translucent "spawnDefender" object (Defender being placed) is ignored when it exists
 	local result = MouseRaycast({spawnDefender})
+	
+	-- Result of object Mouse/Touch is currently hovering over
 	if result and result.Instance then
+		
+		-- Are we currently spawning/placing a Defender? 
+		-- If so ignore any other "hoveredInstance" determined in the "else" below >>
 		if spawnDefender then
 			hoveredInstance = nil
 			--print("Parent Name: " .. result.Instance.Parent.Name) 
@@ -384,12 +428,15 @@ RunService.RenderStepped:Connect(function()
 				local cframe = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(rotation), 0)
 				spawnDefender:SetPrimaryPartCFrame(cframe)	
 			end
-
+			
+		-- ** Handle every Instance the mouse is currently "hovering" over when we're not spawning/placing a Defender
 		else
-			hoveredInstance = result.Instance
+			-- Use this variable in the InputBegan event to do different things based on what the "hoveredInsance" is when a click/touch occurs
+			hoveredInstance = result.Instance 
 
 		end		
 	else
+		-- Not hovering over anyting so set variable to "nil"
 		hoveredInstance = nil
 	end
 
