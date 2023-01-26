@@ -158,7 +158,7 @@ function defender.EquipWeapon(player, currentDefender, weapon)
 	*** 1) Be an object of type "Tool"
 	*** 2) Have a Part named "Handle" that is a direct Child to the Tool (add one near the grip and make invisible if there isn't one)
 	*** 3) Have a Weld created between the "Handle" part and the Tool's grip area
-    ***    (use "RigEdit Lite" plug-in or with "Weld" script)
+    	***    (use "RigEdit Lite" plug-in or with "Weld" script)
 	*** 4) And the "Handle" part should be in the same orientation as the Tool/Weapon 
 	***    (use "Tool Grip Editor" plugin, done manually in Workspace, or repositioned in the "Weld" script)
 	--]]
@@ -185,8 +185,11 @@ function defender.EquipWeapon(player, currentDefender, weapon)
 		defender.Spawn(player, defenderName, cframe, defBBPos, equippedDefender)
 		equippedDefender.Humanoid:EquipTool(newWeapon)
 		currentDefender:Destroy()
-
+		
+	else
+		warn("No Defender to equip/upgrade!")
 	end
+	
 end
 --Connect above method to Server Remote Event
 equipDefenderEvent.OnServerEvent:Connect(defender.EquipWeapon)
