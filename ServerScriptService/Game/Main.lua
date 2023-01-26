@@ -1,11 +1,15 @@
+-- Services
 local ServerScriptService = game:GetService("ServerScriptService")
 
+-- Module Scripts
 local mob = require(ServerScriptService.Modules.Mob)
 local defender = require(ServerScriptService.Modules.Defender)
 
+-- Workspace variables
 local map = workspace.Maps.GrassLand
 local guiData = workspace.GUIData
 
+-- Control variables
 local gameOver = false
 
 map.Ballpark.Humanoid.HealthChanged:Connect(function(health)
