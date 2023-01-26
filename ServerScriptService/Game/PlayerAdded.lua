@@ -1,14 +1,15 @@
 local Players = game:GetService("Players")
 
---When a Player Joins the game and once their "character" spawns and fully loads in...
+--When a Player Joins the game ...
 Players.PlayerAdded:Connect(function(player)
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 	leaderstats.Parent = player
 	
+	
 	local gold = Instance.new("NumberValue")
 	gold.Name = "Gold"
-	gold.Value = 300
+	gold.Value = 1000
 	gold.Parent = leaderstats
 	
 	local placedDefenders = Instance.new("IntValue")
@@ -16,10 +17,9 @@ Players.PlayerAdded:Connect(function(player)
 	placedDefenders.Value = 0
 	placedDefenders.Parent = player
 	
-	
+	--And once the player's appearance completely Loads...
 	player.CharacterAppearanceLoaded:Connect(function(character)
-
-		--add ALL Player parts to the "Player" Collision Group
+		--Add ALL Player parts to the "Player" Collision Group
 		for i, object in ipairs(character:GetDescendants()) do
 			if object:IsA("BasePart") then
 				object.CollisionGroup = "Player"

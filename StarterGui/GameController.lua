@@ -6,11 +6,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local localPlayer = Players.LocalPlayer
 local playerGold = localPlayer.leaderstats:WaitForChild("Gold")
 
---local defenders = ReplicatedStorage:WaitForChild("Defenders")
+--NOTE: The "Squad" folder is where the game's Defender characters are located
 local squadFolder = ReplicatedStorage:WaitForChild("Squad")
 
 local events = ReplicatedStorage:WaitForChild("Events")
 local spawnDefenderEvent = events:WaitForChild("SpawnDefender")
+local equipDefenderEvent = events:WaitForChild("EquipDefender")
 
 local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
 local requestDefender = remoteFunctions:WaitForChild("RequestDefender")
@@ -40,7 +41,7 @@ local lastTouch = tick()
 
 local function SetupGui()
 	health.Setup(ballpark, gui.Info.Health)
-	
+
 	workspace.Mobs.ChildAdded:Connect(function(mob)
 		health.Setup(mob)
 	end)
@@ -63,13 +64,13 @@ SetupGui()
 local function MouseRaycast(blacklistTable)
 	local mousePosition = UserInputService:GetMouseLocation()	
 	local mouseRay = camera:ViewportPointToRay(mousePosition.X, mousePosition.Y)
-	
+
 	local rcParams = RaycastParams.new()
 	rcParams.FilterType = Enum.RaycastFilterType.Blacklist
 	rcParams.FilterDescendantsInstances = blacklistTable
-	
+
 	local raycastResult = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 1000, rcParams)
-	
+
 	return raycastResult
 end
 
@@ -84,9 +85,9 @@ local function RemovePlaceholderDefender()
 end
 
 local function AddPlaceholderDefender(name)
-	
-	if (defenderIsMoving and selectedDefender) then
 
+	if (defenderIsMoving and selectedDefender) then
+		
 		--Existing Defender is being Moved!
 		spawnDefender = selectedDefender
 		selectedDefender = nil
@@ -97,9 +98,9 @@ local function AddPlaceholderDefender(name)
 				object.Material = Enum.Material.ForceField
 			end
 		end
-		
+
 	else
-		
+
 		-- Totally NEW Defender being Placed
 		local newDefender = squadFolder:FindFirstChild(name)
 		if newDefender then
@@ -158,7 +159,7 @@ for i, defender in pairs(squadFolder:GetChildren()) do
 			gui.DefendersList.Visible = false
 		end)
 		--print("Squad Member added: ", defender.Name)
-		
+
 	end
 
 end
@@ -166,6 +167,7 @@ end
 
 gui.LeftMenu.ShowSquad.Activated:Connect(function()
 	gui.DefendersList.Visible = not gui.DefendersList.Visible
+	RemovePlaceholderDefender() --remove any Defender placeholders that may not have been placed before accessing the menu again
 end)
 
 local function SpawnDefender()
@@ -189,7 +191,7 @@ local function SpawnDefender()
 end
 
 local function toggleDefenderInfo()
-	
+
 	if selectedDefender then
 		gui.SelectedDefender.Visible = true
 		local config = selectedDefender.Config
@@ -198,24 +200,70 @@ local function toggleDefenderInfo()
 		gui.SelectedDefender.Stats.Rest.Value.Text = config.Cooldown.Value
 		gui.SelectedDefender.Title.DefenderName.Text = selectedDefender.Name
 		gui.SelectedDefender.Title.DefenderIcon.Image = config.Icon.Texture
-		
+
 	else
 		gui.SelectedDefender.Visible = false
-		
+
 	end
 end
 
 gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
+	local msg
 	if selectedDefender then
+		gui.SelectedDefender.Visible = false --hide gui on click
+
+		--look for contents in the Selected Defender's Config.Weapons folder
+		local defenderWeapon = selectedDefender.Config.Weapon.Value
+		local weaponGroup = selectedDefender.Config.WeaponGroup.Value
+
+		local selDefName = string.split(selectedDefender.Name, "-")[1]
+		local selDefenderSource = ReplicatedStorage.Squad:FindFirstChild(selDefName)
+		local weaponGroupFolder = ReplicatedStorage.Weapons:FindFirstChild("Group" .. weaponGroup)
+
+		local nextEquipOrder
+		if defenderWeapon then
+			print("Current Weapon: " .. defenderWeapon.Name)
+			local defenderWeaponSource = weaponGroupFolder:FindFirstChild(defenderWeapon.Name)
+			nextEquipOrder = defenderWeaponSource.EquipOrder.Value + 1
+		else
+			print("Defender has no weapon. Equip with first weapon in Group " .. weaponGroup)
+			nextEquipOrder = 1
+		end
+		local newWeaponFound = false
+
+		for i, weapon in pairs(weaponGroupFolder:GetChildren()) do
+
+			-- Look for a Weapon/Weapon Upgrade within the WeaponGroup with
+			-- a weapon.EquipOrder that matches the Defender's First/Next EquipOrder
+			if weapon.EquipOrder.Value == nextEquipOrder then
+				equipDefenderEvent:FireServer(selectedDefender, weapon)
+				newWeaponFound = true
+				msg = "New Weapon for Defender " .. selectedDefender.Name .. ": " .. weapon.Name .. "."
+				break --exit loop
+			end
+
+		end	
+
+		if newWeaponFound == false and defenderWeapon then
+			msg = "No weapon upgrade for Defender " .. selectedDefender.Name .. " / Weapon: " .. defenderWeapon.Name .. "."
+		end
 		
+		if string.len(msg) > 0 then
+			--print(msg)
+			gui.Info.Message.Text = msg
+		end
+
+
 	end
+
 end)
+
 
 gui.SelectedDefender.Action.MoveButton.Activated:Connect(function()
 	if selectedDefender then
+		gui.SelectedDefender.Visible = false --hide gui on click
 		defenderIsMoving = true
 		AddPlaceholderDefender(selectedDefender.Name)	
-		gui.SelectedDefender.Visible = false
 	end
 end)
 
@@ -223,14 +271,14 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then
 		return
 	end
-	
+
 	if spawnDefender then
-		
+
 		--Left Mouse Click to Spawn the Defender Placeholder
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			SpawnDefender()
-			
-		--Mobile support > double tap to place Defender
+
+			--Mobile support > double tap to place Defender
 		elseif input.UserInputType == Enum.UserInputType.Touch then
 			local timeBetweenTouches = tick() - lastTouch
 			print(timeBetweenTouches)
@@ -239,14 +287,14 @@ UserInputService.InputBegan:Connect(function(input, processed)
 				SpawnDefender()
 			end
 			lastTouch = tick() --re-intialize timer
-			
-		--Right Mouse Click to Rotate the Defender Placeholder	
+
+			--Right Mouse Click to Rotate the Defender Placeholder	
 		elseif input.KeyCode == Enum.KeyCode.R or input.UserInputType == Enum.UserInputType.MouseButton2 then
 			rotation += 90
 		end
-		
+
 	elseif hoveredInstance and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-		
+
 		local model = hoveredInstance:FindFirstAncestorOfClass("Model")
 		if model and model.Parent == workspace.Squad then -- Is the selected Instance a Model AND one of our Squad Defenders?
 			selectedDefender = model
@@ -256,7 +304,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		end
 		print(selectedDefender)
 		toggleDefenderInfo()
-		
+
 	end
 
 end)
@@ -267,7 +315,7 @@ RunService.RenderStepped:Connect(function()
 		if spawnDefender then
 			hoveredInstance = nil
 			--print("Parent Name: " .. result.Instance.Parent.Name) 
-			
+
 			--If the mouse is currently over a Defensive Position "part"
 			if result.Instance.Parent.Name == "DefPositions" then
 				bballPostion = result.Instance.Name
@@ -275,7 +323,7 @@ RunService.RenderStepped:Connect(function()
 				local posHasDefender = false -- Only one Defender allowed per defensive position on the field
 				local defenderAlreadyPlaced = false -- Specific Defender can only be placed once
 				local invalidDefPosition = false -- Special Defenders (ie "Coach" can only go to a specific position on the field)
-				
+
 				local placedDefenders = workspace.Squad:GetChildren()
 				--EX: "Seb-CF" means player "Seb" was placed in Center Field already (see 'Defender' module script)
 				--Loop through currently placed Defenders ...
@@ -290,19 +338,19 @@ RunService.RenderStepped:Connect(function()
 						posHasDefender = true --Another Defender already in the Position!
 						break
 					end
-		
+
 				end
-				
+
 				--Handle special defenders (current just "Coach" > can only go to the "MGR" DefPosition)
 				if (spawnDefender.Name == "Coach" and bballPostion ~= "MGR") then
 					invalidDefPosition = true
 				end
-				
+
 				if posHasDefender or defenderAlreadyPlaced or invalidDefPosition then --Can't place Defender if another Defender is already there
 					-- INVALID Placement (turn red)
 					canPlace = false 
 					ColorPlaceholderDefender(Color3.new(1, 0, 0))
-					
+
 					-- Tell User why they cant Place...
 					local cantPlaceMessage = ""
 					if posHasDefender then
@@ -322,13 +370,13 @@ RunService.RenderStepped:Connect(function()
 					gui.Info.Message.Text = ""
 					gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
 				end
-				
+
 			else
 				canPlace = false
 				ColorPlaceholderDefender(Color3.new(1, 0, 0))
 			end
-			
-			if spawnDefender:GetDescendants("Humanoid") then
+
+			if spawnDefender:GetChildren("Humanoid") then
 				local x = result.Position.X
 				local y = result.Position.Y + spawnDefender.Humanoid.HipHeight + (spawnDefender.PrimaryPart.Size.Y / 2)
 				local z = result.Position.Z	
@@ -339,10 +387,10 @@ RunService.RenderStepped:Connect(function()
 
 		else
 			hoveredInstance = result.Instance
-			
+
 		end		
 	else
-			hoveredInstance = nil
+		hoveredInstance = nil
 	end
 
 

@@ -1,16 +1,24 @@
+--Services
 local PhysicsService = game:GetService(("PhysicsService"))
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+--Remote Events
 local events = ReplicatedStorage:WaitForChild("Events")
 local spawnDefenderEvent = events:WaitForChild("SpawnDefender")
 local animateDefenderEvent = events:WaitForChild("AnimateDefender")
+local equipDefenderEvent = events:WaitForChild("EquipDefender")
 
+--Remote Functions
 local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
 local requestDefender = remoteFunctions:WaitForChild("RequestDefender")
 
+--Control variables
 local maxDefenderCt = 10
 local defender = {}
+
+
+-- ****************************** --
 
 function NearestTarget(newDefender, range)
 	local nearestTarget = nil
@@ -81,7 +89,7 @@ function defender.Spawn(player, name, cframe, bbPostion, movingDefender)
 			player.PlacedDefenders.Value += 1
 		else
 			defenderToPlace = movingDefender:Clone()
-			movingDefender:Destroy()
+			--movingDefender:Destroy()
 			local movingDefenderNameParts = (defenderToPlace.Name):split("-")
 			defenderToPlace.Name = movingDefenderNameParts[1]
 			print("Moving Defender's Name is now: ", defenderToPlace.Name)
@@ -91,7 +99,7 @@ function defender.Spawn(player, name, cframe, bbPostion, movingDefender)
 		--IMPORTANT: Tack Spawned Baseball Position onto name (ex: "Seb-CF" when Defender "Seb" is placed in Center Field). 
 		--Will be checked when trying to place others (only one player/position!)
 		defenderToPlace.Name = defenderToPlace.Name .. "-" .. bbPostion
-		defenderToPlace.HumanoidRootPart.CFrame = cframe
+		defenderToPlace.PrimaryPart.CFrame = cframe
 		defenderToPlace.Parent = workspace.Squad
 		defenderToPlace.HumanoidRootPart:SetNetworkOwner(nil) --nil = Server
 		
@@ -109,13 +117,14 @@ function defender.Spawn(player, name, cframe, bbPostion, movingDefender)
 		end	
 		
 		coroutine.wrap(defender.Attack)(defenderToPlace, player)
-
+	
 	else
 		warn("Defender does not exist or unable to Move:", name)
 	end
 end
-
+--Connect above method to Server Remote Event
 spawnDefenderEvent.OnServerEvent:Connect(defender.Spawn)
+
 
 function defender.CheckSpawn(player, name)
 	local defenderExists = ReplicatedStorage.Squad:FindFirstChild(name)
@@ -137,7 +146,44 @@ function defender.CheckSpawn(player, name)
 	
 	return resultMessage
 end
-
+--Connect above function to Server Remote Function
 requestDefender.OnServerInvoke = defender.CheckSpawn --wire up the above Function
+
+
+function defender.EquipWeapon(player, currentDefender, weapon)
+	-- *** IMPORTANT: For a Weapon to "Weld" properly to the Character when "Humanoid:EquipTool is called, the weapon should:
+	-- *** -- 1) Should be a "Tool"
+	-- *** -- 2) Have a Part named "Handle" that is a direct Child to the Tool
+	-- *** -- 3) Have a Weld created between the Handle and the Tool's grip area  (use "RigEdit Lite" plug-in or similar)
+	-- *** 		 ...and (perhaps most importantly) the Handle should be in the same orientation as the Tool (Weapon)
+	
+	if currentDefender then
+		print("Attempting to Equip " .. currentDefender.Name .. " with " .. weapon.Name)
+		--Determine Defender data, etc.
+		local defenderData = string.split(currentDefender.Name, "-")
+		local defenderName = defenderData[1]
+		local defBBPos = defenderData[2]
+		local cframe = currentDefender.PrimaryPart.CFrame
+		
+		--Get a new Clone of the Defender and Weapon to be Equipped
+		local equippedDefender = ReplicatedStorage.Squad:WaitForChild(defenderName):Clone()
+		local newWeapon = weapon:Clone()
+		
+		--Set the Defender's New Weapon, add new Damange/Range, and Parent weapon to the Defender
+		equippedDefender.Config.Weapon.Value = newWeapon
+		equippedDefender.Config.Damage.Value = currentDefender.Config.Damage.Value + newWeapon.DamageAdded.Value
+		equippedDefender.Config.Range.Value = currentDefender.Config.Range.Value + newWeapon.RangeAdded.Value
+		newWeapon.Parent = equippedDefender
+
+		--Spawn the Upgraded Defender, actually Equip them once they're spawned, then remove the Original one
+		defender.Spawn(player, defenderName, cframe, defBBPos, equippedDefender)
+		equippedDefender.Humanoid:EquipTool(newWeapon)
+		currentDefender:Destroy()
+
+	end
+end
+--Connect above method to Server Remote Event
+equipDefenderEvent.OnServerEvent:Connect(defender.EquipWeapon)
+
 
 return defender
