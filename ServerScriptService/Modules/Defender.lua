@@ -41,11 +41,15 @@ end
 function defender.Attack(newDefender, player)
 	local config = newDefender.Config
 	local target = NearestTarget(newDefender, config.Range.Value)
+	
+	-- If Target has been acquired and they aren't Dead yet (Health > 0)
 	if target and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
 		
+		-- Look at/Turn toward the Target
 		local targetCFrame = CFrame.lookAt(newDefender.HumanoidRootPart.Position, target.HumanoidRootPart.Position)
 		newDefender.HumanoidRootPart.BodyGyro.CFrame = targetCFrame -- Turn towards enemy when Attacking
 		
+		-- ATTACK!! 
 		animateDefenderEvent:FireAllClients(newDefender, "Attack")
 		target.Humanoid:TakeDamage(config.Damage.Value)
 		
@@ -60,6 +64,7 @@ function defender.Attack(newDefender, player)
 		--print("No target nearby. Defender " .. newDefender.Name .. " should be idle.")
 	end
 	
+	-- Wait .1 then immediately look to Attack again (will remain Idle if no Target acquired)
 	task.wait(.1)
 	if (newDefender and newDefender.Parent) then
 		defender.Attack(newDefender, player)
@@ -115,6 +120,7 @@ function defender.Spawn(player, name, cframe, bbPostion, movingDefender)
 			end
 		end	
 		
+		-- Once Spawned: Immediately look to Attack
 		coroutine.wrap(defender.Attack)(defenderToPlace, player)
 	
 	else
