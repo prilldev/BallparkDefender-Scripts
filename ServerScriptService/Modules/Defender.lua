@@ -73,11 +73,11 @@ function defender.Attack(newDefender, player)
 end
 
 -- Spawn a New/Upgraded Defender (or Move an existing one)
-function defender.Spawn(player, name, cframe, bbPostion, movingDefender)
+function defender.Spawn(player, name, cframe, bbPostion, existingDefender)
 	
 	local defenderAllowed = false
-	if movingDefender then
-		--print(movingDefender)
+	if existingDefender then
+		--print(existingDefender)
 		defenderAllowed = true
 	else
 		defenderAllowed = defender.CheckSpawn(player, name)
@@ -87,16 +87,17 @@ function defender.Spawn(player, name, cframe, bbPostion, movingDefender)
 	if defenderAllowed then
 		--move into workspace
 		local defenderToPlace = nil
-		if (not movingDefender) then
+		if (not existingDefender) then
 			defenderToPlace = ReplicatedStorage.Squad[name]:Clone()
 			player.leaderstats.Gold.Value -= defenderToPlace.Config.Price.Value
 			player.PlacedDefenders.Value += 1
+			print("Placed New Defender: ", defenderToPlace.Name)
 		else
-			defenderToPlace = movingDefender:Clone()
-			--movingDefender:Destroy()
-			local movingDefenderNameParts = (defenderToPlace.Name):split("-")
-			defenderToPlace.Name = movingDefenderNameParts[1]
-			print("Moving Defender's Name is now: ", defenderToPlace.Name)
+			defenderToPlace = existingDefender:Clone()
+			--existingDefender:Destroy()
+			local existingDefenderNameParts = (defenderToPlace.Name):split("-")
+			defenderToPlace.Name = existingDefenderNameParts[1]
+			print("Moved/Upgraded Defender: ", defenderToPlace.Name)
 		end
 		--local newDefender = ReplicatedStorage.Squad[name]:Clone()
 		
