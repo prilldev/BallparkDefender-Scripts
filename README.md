@@ -45,7 +45,7 @@ The relevant items of how I have Ballpark Defender setup in Roblox Studio are li
         * AnimateDefender
         * EquipDefender
         * SpawnDefender
-    * **[-- Functions](https://github.com/prilldev/Roblox-BallparkDefender/tree/master/ReplicatedStorage/Events)**
+    * **[-- Functions](https://github.com/prilldev/Roblox-BallparkDefender/tree/master/ReplicatedStorage/Functions)**
         * RequestDefender
     * **[-- GUIs](https://github.com/prilldev/Roblox-BallparkDefender/tree/master/ReplicatedStorage/GUIs)**
         * HealthGui
