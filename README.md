@@ -24,7 +24,7 @@ The relevant items of how I have Ballpark Defender setup in Roblox Studio are li
     * **-- GUIData**
         * #Inning (NumberValue)
         * #Message (StringValue)
-    * **[-- Maps](/Workspace/Maps]**
+    * **[-- Maps](/Workspace/Maps)**
         * [-- GrassLand](/Workspace/Maps/GrassLand)
             * -- BaseballField
             * -- DefPositions
