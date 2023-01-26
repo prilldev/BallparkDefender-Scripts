@@ -20,6 +20,7 @@ local defender = {}
 
 -- ****************************** --
 
+-- Find Nearest Mob humanoid target
 function NearestTarget(newDefender, range)
 	local nearestTarget = nil
 
@@ -36,9 +37,8 @@ function NearestTarget(newDefender, range)
 	return nearestTarget
 end
 
--- Move a Defender
--- NOTE: Moving a Defender is handled by the Spawn event now
 
+-- Defender Attack on Mobs
 function defender.Attack(newDefender, player)
 	local config = newDefender.Config
 	local target = NearestTarget(newDefender, config.Range.Value)
@@ -68,7 +68,7 @@ function defender.Attack(newDefender, player)
 	
 end
 
--- Spawn a new Defender
+-- Spawn a New/Upgraded Defender (or Move an existing one)
 function defender.Spawn(player, name, cframe, bbPostion, movingDefender)
 	
 	local defenderAllowed = false
@@ -126,6 +126,7 @@ end
 spawnDefenderEvent.OnServerEvent:Connect(defender.Spawn)
 
 
+-- New Defender validation (before Spawn)
 function defender.CheckSpawn(player, name)
 	local defenderExists = ReplicatedStorage.Squad:FindFirstChild(name)
 	local resultMessage = ""
@@ -150,6 +151,7 @@ end
 requestDefender.OnServerInvoke = defender.CheckSpawn --wire up the above Function
 
 
+-- Equip Defender with a new/upgraded Weapon
 function defender.EquipWeapon(player, currentDefender, weapon)
 	-- *** IMPORTANT: For a Weapon to "Weld" properly to the Character when "Humanoid:EquipTool is called, the weapon should:
 	-- *** -- 1) Should be a "Tool"
