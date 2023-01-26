@@ -21,11 +21,11 @@ The relevant items of how I have Ballpark Defender setup in Roblox Studio are li
 ```
 
 * **Workspace**
-    * -- GUIData
+    * **-- GUIData**
         * #Inning (NumberValue)
         * #Message (StringValue)
-    * -- Maps
-        * -- GrassLand
+    * **[-- Maps](/Workspace/Maps]**
+        * [-- GrassLand](/Workspace/Maps/GrassLand)
             * -- BaseballField
             * -- DefPositions
             * -- MobPath
@@ -35,47 +35,48 @@ The relevant items of how I have Ballpark Defender setup in Roblox Studio are li
                 * Humanoid
                 * ...
             * ...
-    * -- Mobs (empty folder that Mobs are spawned into during Gameplay)
-    * -- Squad (empty folder that Defenders are spawned into during Gameplay)
+    * **-- Mobs** (empty folder that Mobs are spawned into during Gameplay)
+    * **-- Squad** (empty folder that Defenders are spawned into during Gameplay)
     * ...
     * Baseplate 
     
-* **ReplicatedStorage**
-    * -- Events
+* **[ReplicatedStorage](/ReplicatedStorage/Modules)**
+    * **[-- Events](/ReplicatedStorage/Events)**
         * AnimateDefender
         * EquipDefender
         * SpawnDefender
-    * -- Functions
+    * **[-- Functions](/ReplicatedStorage/Events)**
         * RequestDefender
-    * -- GUIs
+    * **[-- GUIs](/ReplicatedStorage/GUIs)**
         * HealthGui
-    * -- Modules
-        * Health.lua
-    * -- Squad (stores all the Defender characters used by the game)
-    * -- Weapons
-        * -- Group1
+    * **[-- Modules](/ReplicatedStorage/Modules)**
+        * **[Health.lua](/ReplicatedStorage/Modules/Health.lua)** (dynamic re-usable Health bars)
+    * **-- Squad** (stores all the Defender characters used by the game)
+    * **-- Weapons** 
+    (Each Group represents an "Upgrade Path" of Weapons. Defenders are assigned a Group)
+        * **-- Group1** 
             * Slingshot (EquipOrder = 1)
             * Crossbow (EquipOrder = 2)
-        * -- Group2
+        * **-- Group2**
             * Black Baseball Bat (EquipOrder = 1)
             * Large Wood Bat (EquipOrder = 2)
-        * -- Group3
+        * **-- Group3**
             * Baseball (EquipOrder = 1)
     
-* **ServerScriptService**
-    * -- Game (includes scripts that run immediately as game loads)
-        * Main.lua
-        * PlayerAdded.lua
-    * -- Modules (module scripts referenced throughout game)
-        * Defender.lua
-        * Mob.lua
+* **[ServerScriptService](/ServerScriptService)**
+    * **[-- Game](/ServerScriptService/Game]** (includes scripts that run immediately as game loads)
+        * [Main.lua](/ServerScriptService/Game/Main.lua)
+        * [PlayerAdded.lua](/ServerScriptService/Game/PlayerAdded.lua)
+    * **[-- Modules](/ServerScriptService/Modules]** (module scripts referenced throughout game)
+        * [Defender.lua](/ServerScriptService/Modules/Defender.lua)
+        * [Mob.lua](/ServerScriptService/Modules/Mob.lua)
 * **ServerStorage**
     * -- Various Backup Folders for Characters and Other items that might be needed
-* -- StarterGui
+* **[StarterGui](/StarterGui)**
     * -- Billboards (stores all HealthGui billboards created on Mobs/Ballpark during the game)
-    * **GameController.lua** (the main script that handles user interaction/input)
-    * > GameGui (all the visual frames, etc. on the screen)
-        * DefendersList (scrollable menu of Defenders on the Left)
+    * **[GameController.lua](/StarterGui/GameController.lua)** (the main script that handles user interaction/input)
+    * **GameGui** (all the visual frames, etc. on the screen)
+        * DefendersList (Scrollable Frame: menu of Defenders on the Left)
             * TemplateButton (used to dynamically generate Defender buttons)
                 * Price (Textlabel)
         * Info (Top of screen info area)
@@ -88,9 +89,9 @@ The relevant items of how I have Ballpark Defender setup in Roblox Studio are li
                 * Gold (TextLabel)
             * Message (TextLabel - display messages to user)
         
-* -- StarterPlayer
-    * -- StarterPlayerScripts
-        * Animations.lua
+* **[StarterPlayer](/StarterPlayer)**
+    * **[-- StarterPlayerScripts](/StarterPlayer/StarterPlayerScripts)**
+        * [Animations.lua](/StarterPlayer/StarterPlayerScripts/Animations.lua)
 
 ---
 
