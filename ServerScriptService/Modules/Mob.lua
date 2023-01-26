@@ -1,21 +1,27 @@
+-- Services
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- Referenced Modules
 local modules = ReplicatedStorage:WaitForChild("Modules")
 local health = require(modules:WaitForChild("Health"))
 
+-- Control Variables
 local mob = {}
-local const WAYPOINT_SAFE_AT_HOME = 13
+local const WAYPOINT_SAFE_AT_HOME = 13 --waypoint #13 is at Home plate (change if Map changes!)
 
+-- Move the Mob humanoids around the pre-defined Path using waypoints on the Map
 function mob.Move(mob, map)
 	local mobHumanoid = mob:WaitForChild("Humanoid")
 	local mobWaypoints = map.MobPath.Waypoints
+	
 	--loop through all the waypoints 
 	for waypoint=1, #mobWaypoints:GetChildren() do
 		mobHumanoid:MoveTo(mobWaypoints[waypoint].Position)
 		mobHumanoid.MoveToFinished:Wait()
 		
-		--If Mob Humanoid has made it to Home Plate, Ballpark Takes Damage = Remaining health of the Mob Humanoid
+		--If Mob Humanoid has made it safely to Home Plate w/o getting killed...
+		--Ballpark Takes Damage = Remaining health of the Mob Humanoid
 		if waypoint == WAYPOINT_SAFE_AT_HOME then
 			map.Ballpark.Humanoid:TakeDamage(mobHumanoid.Health)
 		end
@@ -26,7 +32,9 @@ function mob.Move(mob, map)
 	
 end
 
+-- Spawn the Mob member(s)
 function mob.Spawn(name, quantity, map)
+	
 	local mobExists = ServerStorage.Mobs:FindFirstChild(name)
 	if mobExists then
 		--move into workspace
@@ -49,9 +57,10 @@ function mob.Spawn(name, quantity, map)
 				task.wait(0.5)
 				newMob:Destroy()
 			end)
-
+			
+			-- Immediately call mob.Move to start the newly spawned Mob member on it's way
 			coroutine.wrap(mob.Move)(newMob, map)
-			--mob.Move(newMob, map)			
+		
 		end
 
 	else
