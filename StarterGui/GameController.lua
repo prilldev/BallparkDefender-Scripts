@@ -13,15 +13,17 @@ local squadFolder = ReplicatedStorage:WaitForChild("Squad")
 
 -- Remove Events
 local events = ReplicatedStorage:WaitForChild("Events")
-local spawnDefenderEvent = events:WaitForChild("SpawnDefender")
 local equipDefenderEvent = events:WaitForChild("EquipDefender")
+
 -- Remote Functions
 local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
-local requestDefender = remoteFunctions:WaitForChild("RequestDefender")
+local requestDefenderFunction = remoteFunctions:WaitForChild("RequestDefender")
+local spawnDefenderFunction = remoteFunctions:WaitForChild("SpawnDefender")
 
--- Module script references
-local modules = ReplicatedStorage:WaitForChild("Modules")
-local health = require(modules:WaitForChild("Health"))
+-- Module references
+local rsModules = ReplicatedStorage:WaitForChild("Modules")
+-- Module Script references
+local health = require(rsModules:WaitForChild("Health"))
 
 -- Visual workspace variables
 local camera = workspace.CurrentCamera
@@ -33,7 +35,7 @@ local guiData = workspace:WaitForChild("GUIData")
 -- Misc control variables
 local hoveredInstance = nil
 local selectedDefender = nil
-local spawnDefender = nil
+local spawnedDefender = nil
 local canPlace = false
 local rotation = 0
 local bballPostion = nil
@@ -74,13 +76,26 @@ local function SetupGui()
 end
 SetupGui() -- call above Setup function OnLoad of the Game
 
+-- Set Collision Group of all Parts of a Model
+function SetCollisionGroup(model: Model, cgroupName: string, objectTransparency: NumberValue)
+
+	for i, object in ipairs(model:GetDescendants()) do
+		if object:IsA("BasePart") or object:IsA("MeshPart")  then
+			object.CollisionGroup = cgroupName
+			if objectTransparency then
+				object.Transparency = objectTransparency
+			end
+		end
+	end	
+
+end
 
 -- ** Remove Placeholder for Defender after they're placed (or if canceled/menu is clicked again)
 local function RemovePlaceholderDefender()
-	if spawnDefender then
-		--print("Destroying... ", spawnDefender.Name)
-		spawnDefender:Destroy()
-		spawnDefender = nil
+	if spawnedDefender then
+		--print("Destroying... ", spawnedDefender.Name)
+		spawnedDefender:Destroy()
+		spawnedDefender = nil
 		rotation = 0
 		defenderIsMoving = false
 	end
@@ -91,17 +106,9 @@ local function AddPlaceholderDefender(name)
 
 	if (defenderIsMoving and selectedDefender) then
 
-		--Existing Defender is being Moved!
-		spawnDefender = selectedDefender
-		selectedDefender = nil
-		--selectedDefender:Destroy()
-		for i, object in ipairs(spawnDefender:GetDescendants()) do
-			if object:IsA("BasePart") then
-				object.CollisionGroup = "Defender"
-				--object.Material = Enum.Material.ForceField
-				object.Transparency = 0.5
-			end
-		end
+		-- Existing Defender is being Moved!
+		spawnedDefender = selectedDefender:Clone()
+		spawnedDefender.Parent = workspace
 
 	else
 
@@ -109,27 +116,24 @@ local function AddPlaceholderDefender(name)
 		local newDefender = squadFolder:FindFirstChild(name)
 		if newDefender then
 			RemovePlaceholderDefender()
-			spawnDefender = newDefender:Clone()
-			spawnDefender.Parent = workspace
-			selectedDefender = nil
+			spawnedDefender = newDefender:Clone()
+			spawnedDefender.Parent = workspace
 
-			for i, object in ipairs(spawnDefender:GetDescendants()) do
-				if object:IsA("BasePart") then
-					object.CollisionGroup = "Defender"
-					--object.Material = Enum.Material.ForceField
-					object.Transparency = 0.5
-				end
-			end
 		else
 			warn(name .. " not found as a defender.")
 		end
+	end
+	
+	-- Set CollisionGroup of Defender Model
+	if spawnedDefender then
+		SetCollisionGroup(spawnedDefender, "Defender", 0.5)
 	end
 
 end
 
 -- ** Color Placeholder as it's moving around the screen (Green for valid placement/Red for invalid placement)
 local function ColorPlaceholderDefender(color)
-	for i, object in ipairs(spawnDefender:GetDescendants()) do
+	for i, object in ipairs(spawnedDefender:GetDescendants()) do
 		if object:IsA("BasePart") then
 			object.Color = color
 		end
@@ -159,9 +163,9 @@ for i, defender in pairs(squadFolder:GetChildren()) do
 		button.Parent = gui.DefendersList
 
 		button.Activated:Connect(function()
-			spawnDefender = nil
+			spawnedDefender = nil
 			local defenderAllowed = {}
-			defenderAllowed = string.split(requestDefender:InvokeServer(defender.Name), "|")
+			defenderAllowed = string.split(requestDefenderFunction:InvokeServer(defender.Name), "|")
 			print(defenderAllowed)
 
 			if defenderAllowed[1] == "Success" then
@@ -179,43 +183,63 @@ for i, defender in pairs(squadFolder:GetChildren()) do
 
 end
 
-
--- ** Spawn the Defender that's currently in the "DefenderPlaceholder" (global 'spawnDefender' object variable)
-local function SpawnDefender()
-	if canPlace then
-		local defenderToMove = nil
-		if defenderIsMoving then
-			defenderToMove = spawnDefender
-		end
-		spawnDefenderEvent:FireServer(spawnDefender.Name, spawnDefender.PrimaryPart.CFrame, bballPostion, defenderToMove)
-		if defenderToMove then
-			placedDefenderCt += 0 --just moving defender > DON'T increment counter
-			gui.Info.Message.Text = "Defender " .. spawnDefender.Name .. " moved to " .. bballPostion .. "."
-		else
-			placedDefenderCt += 1 --new defender > increment counter
-			gui.Info.Message.Text = "Defender " .. spawnDefender.Name .. " placed in " .. bballPostion .. "."
-		end
-		gui.LeftMenu.ShowSquad.Text = "Squad: " .. placedDefenderCt .. "/" .. maxDefenderCt
-
-		RemovePlaceholderDefender()
-	end
-end
-
 -- ** Toggle Defender Info when a Placed Defender is selected in the Game (not the DefendersList)
-local function toggleDefenderInfo()
-
-	if selectedDefender then
+local function toggleDefenderInfo(defenderToShow: Model)
+	
+	if not defenderToShow then
+		defenderToShow = selectedDefender
+	end
+	if defenderToShow then
 		gui.SelectedDefender.Visible = true
-		local config = selectedDefender.Config
+		local config = defenderToShow.Config
 		gui.SelectedDefender.Stats.Damage.Value.Text = config.Damage.Value
 		gui.SelectedDefender.Stats.Range.Value.Text = config.Range.Value
 		gui.SelectedDefender.Stats.Rest.Value.Text = config.Cooldown.Value
-		gui.SelectedDefender.Title.DefenderName.Text = selectedDefender.Name
+		gui.SelectedDefender.Title.DefenderName.Text = defenderToShow.Name
 		gui.SelectedDefender.Title.DefenderIcon.Image = config.Icon.Texture
 
 	else
 		gui.SelectedDefender.Visible = false
 
+	end
+end
+
+-- ** Spawn the Defender that's currently in the "DefenderPlaceholder" (global 'spawnedDefender' object variable)
+local function SpawnDefender()
+	if canPlace then
+		local placedDefender = nil
+		local defenderToMove = nil -- NOTE: A defender Is Updating if they are Moving OR getting Equipped
+		print("Defender is moving: ", defenderIsMoving)
+		if defenderIsMoving == true then
+			defenderToMove = spawnedDefender
+			print("Defender being moved: ", defenderToMove)
+			placedDefender = spawnDefenderFunction:InvokeServer(spawnedDefender.Name, spawnedDefender.PrimaryPart.CFrame, bballPostion, defenderToMove.Name, defenderIsMoving)
+		else
+			print("Defender being added: ", spawnedDefender)
+			placedDefender = spawnDefenderFunction:InvokeServer(spawnedDefender.Name, spawnedDefender.PrimaryPart.CFrame, bballPostion)
+		end
+
+		if placedDefender then
+			if defenderToMove then
+				placedDefenderCt += 0 --just moving defender > DON'T increment counter
+				gui.Info.Message.Text = "Defender " .. spawnedDefender.Name .. " moved to " .. bballPostion .. "."
+			else
+				placedDefenderCt += 1 --new defender > increment counter
+				gui.Info.Message.Text = "Defender " .. spawnedDefender.Name .. " placed in " .. bballPostion .. "."
+			end
+			
+			-- Removed the Moved Defender from their Previous Location
+			if defenderToMove then
+				defenderToMove:Destroy()
+				print("Defender Removed: ", defenderToMove.Name)
+			end
+			
+			gui.LeftMenu.ShowSquad.Text = "Squad: " .. placedDefenderCt .. "/" .. maxDefenderCt	
+		else
+			warn("Unable to place Defender - 'spawnDefender' remote function return false.")
+		end
+
+		RemovePlaceholderDefender()
 	end
 end
 
@@ -306,7 +330,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		return
 	end
 
-	if spawnDefender then
+	if spawnedDefender then
 
 		--Left Mouse Click to Spawn the Defender Placeholder
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -348,22 +372,22 @@ end)
 RunService.RenderStepped:Connect(function()
 	
 	-- Get current 3D Raycast result (with a {table} of "blacklisted" items to ignore). 
-	-- In this case the translucent "spawnDefender" object (Defender being placed) is ignored when it exists
-	local result = MouseRaycast({spawnDefender})
+	-- In this case the translucent "spawnedDefender" object (Defender being placed) is ignored when it exists
+	local result = MouseRaycast({spawnedDefender})
 	
 	-- Result of object Mouse/Touch is currently hovering over
 	if result and result.Instance then
 		
 		-- Are we currently spawning/placing a Defender? 
 		-- If so ignore any other "hoveredInstance" determined in the "else" below >>
-		if spawnDefender then
+		if spawnedDefender then
 			hoveredInstance = nil
 			--print("Parent Name: " .. result.Instance.Parent.Name) 
 
 			--If the mouse is currently over a Defensive Position "part"
 			if result.Instance.Parent.Name == "DefPositions" then
 				bballPostion = result.Instance.Name
-				print("Position: " .. bballPostion)
+				--print("Position: " .. bballPostion)
 				local posHasDefender = false -- Only one Defender allowed per defensive position on the field
 				local defenderAlreadyPlaced = false -- Specific Defender can only be placed once
 				local invalidDefPosition = false -- Special Defenders (ie "Coach" can only go to a specific position on the field)
@@ -371,14 +395,14 @@ RunService.RenderStepped:Connect(function()
 				local placedDefenders = workspace.Squad:GetChildren()
 				--EX: "Seb-CF" means player "Seb" was placed in Center Field already (see 'Defender' module script)
 				--Loop through currently placed Defenders ...
-				for i, placedDefender in pairs(placedDefenders) do
-					local defPosData = (placedDefender.Name):split("-")
-					print("Position Data = ", defPosData)
-					if (defPosData[1] == spawnDefender.Name) then
+				for _, pd in pairs(placedDefenders) do
+					local defPosData = (pd.Name):split("-")
+					--print("Position Data = ", defPosData)
+					if (defPosData[1] == spawnedDefender.Name and defenderIsMoving == false) then
 						defenderAlreadyPlaced = true -- Defender already placed on the field
 						break
 					end
-					if (defPosData[2] == bballPostion and spawnDefender.Name:split("-")[1] ~= defPosData[1]) then 
+					if (defPosData[2] == bballPostion and spawnedDefender.Name:split("-")[1] ~= defPosData[1]) then 
 						posHasDefender = true --Another Defender already in the Position!
 						break
 					end
@@ -386,7 +410,7 @@ RunService.RenderStepped:Connect(function()
 				end
 
 				--Handle special defenders (current just "Coach" > can only go to the "MGR" DefPosition)
-				if (spawnDefender.Name == "Coach" and bballPostion ~= "MGR") then
+				if (spawnedDefender.Name == "Coach" and bballPostion ~= "MGR") then
 					invalidDefPosition = true
 				end
 
@@ -400,9 +424,9 @@ RunService.RenderStepped:Connect(function()
 					if posHasDefender then
 						cantPlaceMessage = bballPostion .. " position already filled!"
 					elseif defenderAlreadyPlaced then
-						cantPlaceMessage = "Defender " .. spawnDefender.Name .. " already on the field!"
+						cantPlaceMessage = "Defender " .. spawnedDefender.Name .. " already on the field!"
 					elseif invalidDefPosition then
-						cantPlaceMessage = "Position " .. bballPostion .. " invalid for Defender " .. spawnDefender.Name .. "."
+						cantPlaceMessage = "Position " .. bballPostion .. " invalid for Defender " .. spawnedDefender.Name .. "."
 					end
 					print(cantPlaceMessage)
 					gui.Info.Message.Text = cantPlaceMessage
@@ -420,13 +444,13 @@ RunService.RenderStepped:Connect(function()
 				ColorPlaceholderDefender(Color3.new(1, 0, 0))
 			end
 
-			if spawnDefender:GetChildren("Humanoid") then
+			if spawnedDefender:FindFirstChild("Humanoid")  then
 				local x = result.Position.X
-				local y = result.Position.Y + spawnDefender.Humanoid.HipHeight + (spawnDefender.PrimaryPart.Size.Y / 2)
+				local y = result.Position.Y + spawnedDefender.Humanoid.HipHeight + (spawnedDefender.PrimaryPart.Size.Y / 2)
 				local z = result.Position.Z	
 
 				local cframe = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(rotation), 0)
-				spawnDefender:SetPrimaryPartCFrame(cframe)	
+				spawnedDefender:SetPrimaryPartCFrame(cframe)	
 			end
 			
 		-- ** Handle every Instance the mouse is currently "hovering" over when we're not spawning/placing a Defender

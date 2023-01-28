@@ -1,16 +1,17 @@
 --Services
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 --Remote Events
 local events = ReplicatedStorage:WaitForChild("Events")
-local spawnDefenderEvent = events:WaitForChild("SpawnDefender")
 local animateDefenderEvent = events:WaitForChild("AnimateDefender")
 local equipDefenderEvent = events:WaitForChild("EquipDefender")
 
 --Remote Functions
 local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
 local requestDefender = remoteFunctions:WaitForChild("RequestDefender")
+local spawnDefender = remoteFunctions:WaitForChild("SpawnDefender")
 
 --Control variables
 local maxDefenderCt = 10
@@ -36,20 +37,63 @@ function NearestTarget(newDefender, range)
 	return nearestTarget
 end
 
+function defender.Optimize(defenderModel: Model)
+	local humanoid = defenderModel:FindFirstChild("Humanoid")
+	
+	if defenderModel:FindFirstChild("HumanoidRootPart") then
+		defenderModel.HumanoidRootPart:SetNetworkOwner(nil)
+	elseif defenderModel.PrimaryPart ~= nil then
+		defenderModel.PrimaryPart:SetNetworkOwner(nil)
+	end
+	
+	--Optimize by Disabling all the "States" Defender's dont' need/use
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Running, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+	
+end
+
+-- Set Collision Group of all Parts of a Model
+function defender.SetCollisionGroup(model: Model, cgroupName: string)
+	
+	for i, object in ipairs(model:GetDescendants()) do
+		if object:IsA("BasePart") or object:IsA("MeshPart")  then
+			object.CollisionGroup = cgroupName
+		end
+	end	
+	
+end
+
+-- Turn Defender towards Target with TweenService (replaces BodyGyro stuff)
+function defender.FaceTarget(newDefender, target, duration)
+	
+	local targetVector = Vector3.new(target.PrimaryPart.Position.X, newDefender.PrimaryPart.Position.Y, target.PrimaryPart.Position.Z)
+	local targetCFrame = CFrame.new(newDefender.PrimaryPart.Position, targetVector)
+	
+	local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, 0, false, 0)
+	local faceTargetTween = TweenService:Create(newDefender.PrimaryPart, tweenInfo, {CFrame = targetCFrame})
+	faceTargetTween:Play()
+	
+end
 
 -- Defender Attack on Mobs
 function defender.Attack(newDefender, player)
 	local config = newDefender.Config
+	
 	local target = NearestTarget(newDefender, config.Range.Value)
 	
 	-- If Target has been acquired and they aren't Dead yet (Health > 0)
 	if target and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
 		
-		-- Look at/Turn toward the Target
-		local targetCFrame = CFrame.lookAt(newDefender.HumanoidRootPart.Position, target.HumanoidRootPart.Position)
-		newDefender.HumanoidRootPart.BodyGyro.CFrame = targetCFrame -- Turn towards enemy when Attacking
+		---- Look at/Turn toward the Target
+		defender.FaceTarget(newDefender, target, 0.05)
 		
-		-- ATTACK!! 
+		-- ATTACK!!  
 		animateDefenderEvent:FireAllClients(newDefender, "Attack")
 		target.Humanoid:TakeDamage(config.Damage.Value)
 		
@@ -73,63 +117,61 @@ function defender.Attack(newDefender, player)
 end
 
 -- Spawn a New/Upgraded Defender (or Move an existing one)
-function defender.Spawn(player, name, cframe, bbPostion, existingDefender)
+function defender.Spawn(player, name, cframe, bbPostion, existingDefenderName: string, isMoving)
 	
+	local existingDefender = nil
 	local defenderAllowed = false
-	if existingDefender then
-		--print(existingDefender)
+	
+	if existingDefenderName then
+		print("Existing Defender being Moved in Workspace: ", existingDefenderName)
+		existingDefender = workspace.Squad:FindFirstChild(existingDefenderName)
 		defenderAllowed = true
 	else
 		defenderAllowed = defender.CheckSpawn(player, name)
 	end
 	
-	
 	if defenderAllowed then
-		--move into workspace
 		local defenderToPlace = nil
+		local defenderNameToPlace = nil
+		
+		--print("defender.Spawn() -- Existing Defender Name: ", existingDefender.Name)
 		if (not existingDefender) then
 			defenderToPlace = ReplicatedStorage.Squad[name]:Clone()
+			defenderNameToPlace = defenderToPlace.Name
 			player.leaderstats.Gold.Value -= defenderToPlace.Config.Price.Value
 			player.PlacedDefenders.Value += 1
-			print("Placed New Defender: ", defenderToPlace.Name)
+			print("Placing New Defender " .. defenderToPlace.Name .. " in Position " .. bbPostion)
 		else
-			defenderToPlace = existingDefender:Clone()
-			--existingDefender:Destroy()
-			local existingDefenderNameParts = (defenderToPlace.Name):split("-")
-			defenderToPlace.Name = existingDefenderNameParts[1]
-			print("Moved/Upgraded Defender: ", defenderToPlace.Name)
+			defenderToPlace = existingDefender
+			local existingDefenderNameParts = existingDefender.Name:split("-")
+			defenderNameToPlace = existingDefenderNameParts[1] 
+			print("Moving Defender: ", existingDefender.Name .. " to " .. defenderNameToPlace .. "-" .. bbPostion)
 		end
-		--local newDefender = ReplicatedStorage.Squad[name]:Clone()
 		
 		--IMPORTANT: Tack Spawned Baseball Position onto name (ex: "Seb-CF" when Defender "Seb" is placed in Center Field). 
 		--Will be checked when trying to place others (only one player/position!)
-		defenderToPlace.Name = defenderToPlace.Name .. "-" .. bbPostion
+		defenderToPlace.Name = defenderNameToPlace .. "-" .. bbPostion
 		defenderToPlace.PrimaryPart.CFrame = cframe
-		defenderToPlace.Parent = workspace.Squad
-		defenderToPlace.HumanoidRootPart:SetNetworkOwner(nil) --nil = Server
-		
-		local bodyGyro = Instance.new("BodyGyro")
-		bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-		bodyGyro.D = 0
-		bodyGyro.CFrame = defenderToPlace.HumanoidRootPart.CFrame
-		bodyGyro.Parent = defenderToPlace.HumanoidRootPart
+		defenderToPlace.Parent = workspace.Squad --move into workspace
+		print("Name of Defender placed/moved in workspace: ", defenderToPlace.Name)
 		
 		--add ALL Defender parts to the "Defender" Collision Group
-		for i, object in ipairs(defenderToPlace:GetDescendants()) do
-			if object:IsA("BasePart") then
-				object.CollisionGroup = "Defender"
-			end
-		end	
+		defender.SetCollisionGroup(defenderToPlace, "Defender")
 		
-		-- Once Spawned: Immediately look to Attack
+		--Optimize the New Defender
+		defender.Optimize(defenderToPlace)
+		
+		-- Once Spawned/Moved: Immediately look to Attack
 		coroutine.wrap(defender.Attack)(defenderToPlace, player)
-	
+		
+ 		return defenderToPlace
+		
 	else
 		warn("Defender does not exist or unable to Move:", name)
+		return false
 	end
 end
---Connect above method to Server Remote Event
-spawnDefenderEvent.OnServerEvent:Connect(defender.Spawn)
+spawnDefender.OnServerInvoke = defender.Spawn
 
 
 -- New Defender validation (before Spawn)
@@ -179,19 +221,18 @@ function defender.EquipWeapon(player, currentDefender, weapon)
 		local cframe = currentDefender.PrimaryPart.CFrame
 		
 		--Get a new Clone of the Defender and Weapon to be Equipped
-		local equippedDefender = ReplicatedStorage.Squad:WaitForChild(defenderName):Clone()
+		--local equippedDefender = ReplicatedStorage.Squad:WaitForChild(defenderName):Clone()
 		local newWeapon = weapon:Clone()
 		
 		--Set the Defender's New Weapon, add new Damange/Range, and Parent weapon to the Defender
-		equippedDefender.Config.Weapon.Value = newWeapon
-		equippedDefender.Config.Damage.Value = currentDefender.Config.Damage.Value + newWeapon.DamageAdded.Value
-		equippedDefender.Config.Range.Value = currentDefender.Config.Range.Value + newWeapon.RangeAdded.Value
-		newWeapon.Parent = equippedDefender
+		currentDefender.Config.Weapon.Value = newWeapon
+		currentDefender.Config.Damage.Value = currentDefender.Config.Damage.Value + newWeapon.DamageAdded.Value
+		currentDefender.Config.Range.Value = currentDefender.Config.Range.Value + newWeapon.RangeAdded.Value
+		newWeapon.Parent = currentDefender
 
-		--Spawn the Upgraded Defender, actually Equip them once they're spawned, then remove the Original one
-		defender.Spawn(player, defenderName, cframe, defBBPos, equippedDefender)
-		equippedDefender.Humanoid:EquipTool(newWeapon)
-		currentDefender:Destroy()
+		--Actually Equip the Defender with the New Weapon
+		currentDefender.Humanoid:EquipTool(newWeapon)
+		print("Defender " .. currentDefender.Name	 .. " equipped with Weapon " .. newWeapon.Name)
 		
 	else
 		warn("No Defender to equip/upgrade!")
