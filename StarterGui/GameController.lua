@@ -19,6 +19,7 @@ local equipDefenderEvent = events:WaitForChild("EquipDefender")
 local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
 local requestDefenderFunction = remoteFunctions:WaitForChild("RequestDefender")
 local spawnDefenderFunction = remoteFunctions:WaitForChild("SpawnDefender")
+local upgradeDefenderFunction = remoteFunctions:WaitForChild("UpgradeDefender")
 
 -- Module references
 local rsModules = ReplicatedStorage:WaitForChild("Modules")
@@ -60,6 +61,7 @@ local function SetupGui()
 	-- Connect "Changed" event of Info Message bar whenver Message changes
 	guiData.Message.Changed:Connect(function(change)
 		gui.Info.Message.Text = change
+		gui.Info.Message.Visible = not (guiData.Message.Value == "")
 	end)
 
 	-- Connect "Changed" event of Inning (Wave) Message bar each time Inning/Wave is changing
@@ -84,10 +86,47 @@ function SetCollisionGroup(model: Model, cgroupName: string, objectTransparency:
 		if object:IsA("BasePart") or object:IsA("MeshPart")  then
 			object.CollisionGroup = cgroupName
 			if objectTransparency then
-				object.Transparency = objectTransparency
+				if object.Name ~= "Range" then --if it's NOT a RangeCircle
+					object.Transparency = objectTransparency
+				end
+				
 			end
 		end
 	end	
+
+end
+
+-- Create visual Range Circle around the Defender (called when they're selected)
+local function CreateDefenderRangeCircle(defender, isPlaceholder)
+
+	local range = defender.Config.Range.Value
+	local height = (defender.PrimaryPart.Size.Y / 2) + defender.Humanoid.HipHeight
+	local offset = CFrame.new(0, -height, 0)
+
+	local p = Instance.new("Part")
+	p.Name = "Range"
+	p.Shape = Enum.PartType.Cylinder
+	p.Material = Enum.Material.Neon
+	p.Transparency = 0.8
+	p.Size = Vector3.new(1, range * 2, range * 2)
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	--set Cframe to the Defender -- "offset" puts it to the ground, then "Angles" rotates 90 so it's flat on grand
+	p.CFrame = defender.PrimaryPart.CFrame * offset * CFrame.Angles(0, 0, math.rad(90)) 
+	p.CanCollide = false
+	
+	--When its a floating Placeholder Defender, Weld the Range Circle to the Defender so it moves with it
+	if isPlaceholder then
+		p.Anchored = false
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = p
+		weld.Part1 = defender.PrimaryPart
+		weld.Parent = p
+		p.Parent = defender
+	else
+		p.Anchored = true
+		p.Parent = workspace.Camera
+	end
 
 end
 
@@ -124,9 +163,11 @@ local function AddPlaceholderDefender(name)
 			warn(name .. " not found as a defender.")
 		end
 	end
+	
 
 	-- Set CollisionGroup of Defender Model
 	if spawnedDefender then
+		CreateDefenderRangeCircle(spawnedDefender, true)
 		SetCollisionGroup(spawnedDefender, "Defender", 0.5)
 	end
 
@@ -166,10 +207,10 @@ local function SpawnDefender()
 		if placedDefender then
 			if defenderToMove then
 				placedDefenderCt += 0 --just moving defender > DON'T increment counter
-				gui.Info.Message.Text = "Defender " .. spawnedDefender.Name .. " moved to " .. bballPostion .. "."
+				guiData.Message.Value = "Defender " .. spawnedDefender.Name .. " moved to " .. bballPostion .. "."
 			else
 				placedDefenderCt += 1 --new defender > increment counter
-				gui.Info.Message.Text = "Defender " .. spawnedDefender.Name .. " placed in " .. bballPostion .. "."
+				guiData.Message.Value = "Defender " .. spawnedDefender.Name .. " placed in " .. bballPostion .. "."
 			end
 
 			-- Removed the Moved Defender from their Previous Location
@@ -194,14 +235,18 @@ local function SpawnDefender()
 end
 
 
--- ** LeftMenu Frame's "Squad" button Text
+-- LeftMenu Frame's "Squad" button Text
 gui.LeftMenu.AddDefender.Title.Text = "Defender: " .. placedDefenderCt .. "/" .. maxDefenderCt
--- ** Setup of "AddDefender" Activated Event (Shows/Hides the above "DefendersList" Frame)
+-- Setup of "AddDefender" Activated Event (Shows/Hides the above "DefendersList" Frame)
 gui.LeftMenu.AddDefender.Activated:Connect(function()
 	ToggleDefendersList()
 	RemovePlaceholderDefender() --remove any Defender placeholders that may not have been placed before accessing the menu again
 end)
 
+-- Info Message Close Button (red 'X')
+gui.Info.Message.CloseMsgBtn.Activated:Connect(function()
+	gui.Info.Message.Visible = false
+end)
 
 -- ** Setup/Populate "DefendersList" frame on the Left (invisible by default)
 for i, defender in pairs(squadFolder:GetChildren()) do
@@ -237,7 +282,7 @@ for i, defender in pairs(squadFolder:GetChildren()) do
 			else
 				gui.Info.Message.TextColor3 = Color3.new(1, 0, 0)
 			end
-			gui.Info.Message.Text = defenderAllowed[2]
+			guiData.Message.Value = defenderAllowed[2]
 			gui.DefendersList.Visible = false
 		end)
 		--print("Squad Member added: ", defender.Name)
@@ -248,11 +293,13 @@ end
 
 -- ** Toggle Defender Info when a Placed Defender is selected in the Game (not the DefendersList)
 local function ToggleDefenderInfo(defenderToShow: Model)
-
+	workspace.Camera:ClearAllChildren() --clean up Range circle(s) stored in "Camera"
+	
 	if not defenderToShow then
 		defenderToShow = selectedDefender
 	end
 	if defenderToShow then
+		CreateDefenderRangeCircle(defenderToShow) -- Create a visual range circle around the Defender when it's selected (for visual feedback)
 		gui.SelectedDefender.Visible = true
 		local config = defenderToShow.Config
 		gui.SelectedDefender.Stats.Damage.Value.Text = config.Damage.Value
@@ -261,10 +308,9 @@ local function ToggleDefenderInfo(defenderToShow: Model)
 		gui.SelectedDefender.Title.DefenderName.Text = defenderToShow.Name
 		gui.SelectedDefender.Title.DefenderIcon.Image = config.Icon.Texture
 
-		local upgradeDefender 
 	else
 		gui.SelectedDefender.Visible = false
-
+		gui.Info.Message.Visible = false
 	end
 end
 
@@ -316,12 +362,15 @@ gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 
 			-- Wire up each Weapon Button's Activated event
 			button.Activated:Connect(function()
-
+				local upgradedDefender = nil
+				
 				if weapon.Config.EquipOrder.Value == currWeaponEquipOrder + 1 then
-					equipDefenderEvent:FireServer(selectedDefender, weapon)
+					--equipDefenderEvent:FireServer(selectedDefender, weapon)
+					local resultMessage: string = ""
+					upgradedDefender = upgradeDefenderFunction:InvokeServer(selectedDefender, weapon)
 					newWeaponFound = true
+					msg = upgradedDefender.Config.StatusMessage.Value
 					gui.SelectedDefender.Upgrades.Visible = false
-					msg = "New Weapon for Defender " .. selectedDefender.Name .. ": " .. weapon.Config.WeaponName.Value .. "."
 				else
 					msg = "Selected Weapon " .. weapon.Config.WeaponName.Value .. " is not the next upgrade for " .. selectedDefender.Name .. ", try again."
 				end
@@ -329,12 +378,18 @@ gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 				if newWeaponFound == false and defenderWeapon then
 					msg = "No weapon upgrade for Defender " .. selectedDefender.Name .. " / Weapon: " .. defenderWeapon.Name .. "."
 					gui.SelectedDefender.Upgrades.Visible = false
+				else
+					if upgradedDefender then
+						ToggleDefenderInfo(upgradedDefender)
+					end
 				end
 
 				if string.len(msg) > 0 then
 					print(msg)
-					gui.Info.Message.Text = msg
+					guiData.Message.Value =  msg
 				end
+				
+				
 
 			end)
 		end
@@ -481,13 +536,13 @@ RunService.RenderStepped:Connect(function()
 						cantPlaceMessage = "Position " .. bballPostion .. " invalid for Defender " .. spawnedDefender.Name .. "."
 					end
 					print(cantPlaceMessage)
-					gui.Info.Message.Text = cantPlaceMessage
+					guiData.Message.Value = cantPlaceMessage
 					gui.Info.Message.TextColor3 = Color3.new(1, 0, 0)
 				else
 					-- Placement is valid! (turn green)
 					canPlace = true
 					ColorPlaceholderDefender(Color3.new(0, 1, 0))
-					gui.Info.Message.Text = ""
+					guiData.Message.Value = ""
 					gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
 				end
 

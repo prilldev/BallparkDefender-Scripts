@@ -10,8 +10,9 @@ local equipDefenderEvent = events:WaitForChild("EquipDefender")
 
 --Remote Functions
 local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
-local requestDefender = remoteFunctions:WaitForChild("RequestDefender")
-local spawnDefender = remoteFunctions:WaitForChild("SpawnDefender")
+local requestDefenderFunc = remoteFunctions:WaitForChild("RequestDefender")
+local spawnDefenderFunc = remoteFunctions:WaitForChild("SpawnDefender")
+local upgradeDefenderFunc = remoteFunctions:WaitForChild("UpgradeDefender")
 
 --Control variables
 local maxDefenderCt = 10
@@ -25,7 +26,7 @@ function NearestTarget(newDefender, range)
 	local nearestTarget = nil
 
 	for i, target in ipairs(workspace.Mobs:GetChildren()) do
-		local distance = (target.HumanoidRootPart.Position - newDefender.HumanoidRootPart.Position).Magnitude
+		local distance = (target.HumanoidRootPart.Position - newDefender:WaitForChild("HumanoidRootPart").Position).Magnitude
 		--print(target.Name, distance)
 		if distance < range then
 			--print(target.Name, "is the nearest target found so far...")
@@ -171,7 +172,7 @@ function defender.Spawn(player, name, cframe, bbPostion, existingDefenderName: s
 		return false
 	end
 end
-spawnDefender.OnServerInvoke = defender.Spawn
+spawnDefenderFunc.OnServerInvoke = defender.Spawn
 
 
 -- New Defender validation (before Spawn)
@@ -196,7 +197,7 @@ function defender.CheckSpawn(player, name)
 	return resultMessage
 end
 --Connect above function to Server Remote Function
-requestDefender.OnServerInvoke = defender.CheckSpawn --wire up the above Function
+requestDefenderFunc.OnServerInvoke = defender.CheckSpawn --wire up the above Function
 
 
 -- Equip Defender with a new/upgraded Weapon
@@ -211,7 +212,7 @@ function defender.EquipWeapon(player, currentDefender, weapon)
 	*** 4) And the "Handle" part should be in the same orientation as the Tool/Weapon 
 	***    (use "Tool Grip Editor" plugin, done manually in Workspace, or repositioned in the "Weld" script)
 	--]]
-	
+	local msg: string
 	if currentDefender then
 		print("Attempting to Equip " .. currentDefender.Name .. " with " .. weapon.Config.WeaponName.Value)
 		--Determine Defender data, etc.
@@ -223,24 +224,45 @@ function defender.EquipWeapon(player, currentDefender, weapon)
 		--Get a new Clone of the Defender and Weapon to be Equipped
 		--local equippedDefender = ReplicatedStorage.Squad:WaitForChild(defenderName):Clone()
 		local newWeapon = weapon:Clone()
-		
+
 		--Set the Defender's New Weapon, add new Damange/Range, and Parent weapon to the Defender
 		currentDefender.Config.Weapon.Value = newWeapon
 		currentDefender.Config.Damage.Value = currentDefender.Config.Damage.Value + newWeapon.Config.DamageAdded.Value
 		currentDefender.Config.Range.Value = currentDefender.Config.Range.Value + newWeapon.Config.RangeAdded.Value
 		newWeapon.Parent = currentDefender
-
+		player.leaderstats.Gold.Value -= weapon.Config.Cost.Value
+		
 		--Actually Equip the Defender with the New Weapon
 		currentDefender.Humanoid:EquipTool(newWeapon)
-		print("Defender " .. currentDefender.Name	 .. " equipped with Weapon " .. newWeapon.Config.WeaponName.Value)
-		
+		msg = "Defender " .. currentDefender.Name	 .. " equipped with Weapon " .. newWeapon.Config.WeaponName.Value 
+		print(msg)			
+		currentDefender.Config.StatusMessage.Value = msg
 	else
 		warn("No Defender to equip/upgrade!")
 	end
 	
 end
---Connect above method to Server Remote Event
-equipDefenderEvent.OnServerEvent:Connect(defender.EquipWeapon)
+--NOTE: The Client now calls the below upgradeDefender Function, which then in turns calls the above EquipWeapon Event
+-- ...and then the Function returns the Upgraded Defender (with new Range/Damage) immediately to the Client
+
+
+-- Function to use the above EquipWeapon event, but to return an Upgraded Defender back to the Client
+function defender.UpgradeDefender(player: Player, upgradedDefender: Model, weapon: Model, someFutureUpgradeObject: Model)
+	
+	if weapon then
+		if (player.leaderstats.Gold.Value >= weapon.Config.Cost.Value) then
+			defender.EquipWeapon(player, upgradedDefender, weapon)
+		else
+			upgradedDefender.Config.StatusMessage.Value = "Not enough Gold for Weapon: " .. weapon.Config.WeaponName.Value
+		end
+		
+		return upgradedDefender
+		
+	end
+	--elseif  --- Handle future UpgradeObjects with else statements
+	--end
+end
+upgradeDefenderFunc.OnServerInvoke = defender.UpgradeDefender --wire up the above Function
 
 
 return defender
