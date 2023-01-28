@@ -213,7 +213,7 @@ function defender.EquipWeapon(player, currentDefender, weapon)
 	--]]
 	
 	if currentDefender then
-		print("Attempting to Equip " .. currentDefender.Name .. " with " .. weapon.Name)
+		print("Attempting to Equip " .. currentDefender.Name .. " with " .. weapon.Config.WeaponName.Value)
 		--Determine Defender data, etc.
 		local defenderData = string.split(currentDefender.Name, "-")
 		local defenderName = defenderData[1]
@@ -226,13 +226,13 @@ function defender.EquipWeapon(player, currentDefender, weapon)
 		
 		--Set the Defender's New Weapon, add new Damange/Range, and Parent weapon to the Defender
 		currentDefender.Config.Weapon.Value = newWeapon
-		currentDefender.Config.Damage.Value = currentDefender.Config.Damage.Value + newWeapon.DamageAdded.Value
-		currentDefender.Config.Range.Value = currentDefender.Config.Range.Value + newWeapon.RangeAdded.Value
+		currentDefender.Config.Damage.Value = currentDefender.Config.Damage.Value + newWeapon.Config.DamageAdded.Value
+		currentDefender.Config.Range.Value = currentDefender.Config.Range.Value + newWeapon.Config.RangeAdded.Value
 		newWeapon.Parent = currentDefender
 
 		--Actually Equip the Defender with the New Weapon
 		currentDefender.Humanoid:EquipTool(newWeapon)
-		print("Defender " .. currentDefender.Name	 .. " equipped with Weapon " .. newWeapon.Name)
+		print("Defender " .. currentDefender.Name	 .. " equipped with Weapon " .. newWeapon.Config.WeaponName.Value)
 		
 	else
 		warn("No Defender to equip/upgrade!")
