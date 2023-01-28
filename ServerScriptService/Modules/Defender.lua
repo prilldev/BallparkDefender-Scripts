@@ -1,5 +1,4 @@
 --Services
-local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -13,6 +12,10 @@ local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
 local requestDefenderFunc = remoteFunctions:WaitForChild("RequestDefender")
 local spawnDefenderFunc = remoteFunctions:WaitForChild("SpawnDefender")
 local upgradeDefenderFunc = remoteFunctions:WaitForChild("UpgradeDefender")
+local changeTargetModeFunc = remoteFunctions:WaitForChild("ChangeTargetMode")
+
+--Workspace variables
+local map = workspace.Maps.GrassLand
 
 --Control variables
 local maxDefenderCt = 10
@@ -21,21 +24,57 @@ local defender = {}
 
 -- ****************************** --
 
--- Find Nearest Mob humanoid target
-function NearestTarget(newDefender, range)
-	local nearestTarget = nil
-
+-- Find Best Mob humanoid target
+function defender.FindTarget(newDefender, range, targetMode)
+	local bestTarget = nil
+	
+	local bestWaypoint = nil
+	local bestDistance = nil
+	local bestHealth = nil
+	
 	for i, target in ipairs(workspace.Mobs:GetChildren()) do
-		local distance = (target.HumanoidRootPart.Position - newDefender:WaitForChild("HumanoidRootPart").Position).Magnitude
-		--print(target.Name, distance)
-		if distance < range then
-			--print(target.Name, "is the nearest target found so far...")
-			nearestTarget = target
-			range = distance
-		end
-	end	
+		local distanceToTarget = (target.HumanoidRootPart.Position - newDefender:WaitForChild("HumanoidRootPart").Position).Magnitude
+		local distanceToWaypoint = (target.HumanoidRootPart.Position - map.MobPath.Waypoints[target.MovingTo.Value].Position).Magnitude
+		
+		if distanceToTarget <= range then
+			if targetMode == "Near" then
+				range = distanceToTarget
+				bestTarget = target
+			elseif targetMode == "First" then
+				if not bestWaypoint or target.MovingTo.Value >= bestWaypoint then
+					bestWaypoint = target.MovingTo.Value
+					
+					if not bestDistance or distanceToWaypoint < bestDistance then
+						bestDistance = distanceToWaypoint
+						bestTarget = target
+					end
+				end
+			elseif targetMode == "Last" then
+				if not bestWaypoint or target.MovingTo.Value <= bestWaypoint then
+					bestWaypoint = target.MovingTo.Value
 
-	return nearestTarget
+					if not bestDistance or distanceToWaypoint > bestDistance then
+						bestDistance = distanceToWaypoint
+						bestTarget = target
+					end
+				end				
+			elseif targetMode == "Strong" then
+				if not bestHealth or target.Humanoid.Health > bestHealth then
+					bestHealth = target.Humanoid.Health
+					bestTarget = target
+				end
+			elseif targetMode == "Weak" then
+				if not bestHealth or target.Humanoid.Health < bestHealth then
+					bestHealth = target.Humanoid.Health
+					bestTarget = target
+				end
+			end
+		end
+
+	end	
+	
+	return bestTarget
+	
 end
 
 function defender.Optimize(defenderModel: Model)
@@ -86,7 +125,8 @@ end
 function defender.Attack(newDefender, player)
 	local config = newDefender.Config
 	
-	local target = NearestTarget(newDefender, config.Range.Value)
+	--local target = NearestTarget(newDefender, config.Range.Value)
+	local target = defender.FindTarget(newDefender, config.Range.Value, config.TargetMode.Value)
 	
 	-- If Target has been acquired and they aren't Dead yet (Health > 0)
 	if target and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
@@ -137,8 +177,20 @@ function defender.Spawn(player, name, cframe, bbPostion, existingDefenderName: s
 		
 		--print("defender.Spawn() -- Existing Defender Name: ", existingDefender.Name)
 		if (not existingDefender) then
+
 			defenderToPlace = ReplicatedStorage.Squad[name]:Clone()
 			defenderNameToPlace = defenderToPlace.Name
+			
+			local ownerValue = Instance.new("StringValue")
+			ownerValue.Name = "Owner"
+			ownerValue.Value = player.Name
+			ownerValue.Parent = defenderToPlace.Config
+			
+			local targetMode = Instance.new("StringValue")
+			targetMode.Name = "TargetMode"
+			targetMode.Value = "Near" --default of "FindTarget" function
+			targetMode.Parent = defenderToPlace.Config
+			
 			player.leaderstats.Gold.Value -= defenderToPlace.Config.Price.Value
 			player.PlacedDefenders.Value += 1
 			print("Placing New Defender " .. defenderToPlace.Name .. " in Position " .. bbPostion)
@@ -264,5 +316,25 @@ function defender.UpgradeDefender(player: Player, upgradedDefender: Model, weapo
 end
 upgradeDefenderFunc.OnServerInvoke = defender.UpgradeDefender --wire up the above Function
 
+function defender.ChangeTargetMode(player, model)
+	if model and model:FindFirstChild("Config") then
+		local targetMode = model.Config.TargetMode
+		local modesTable = {"Near", "First", "Last", "Strong", "Weak"}
+		local modeIndex = table.find(modesTable, targetMode.Value)
+		
+		if modeIndex < #modesTable then
+			targetMode.Value = modesTable[modeIndex + 1]
+		else
+			targetMode.Value = modesTable[1]
+		end
+		
+		return true
+	else
+		warn("Unable to change Target Mode.")
+		return false
+	end
+	
+end
+changeTargetModeFunc.OnServerInvoke = defender.ChangeTargetMode
 
 return defender

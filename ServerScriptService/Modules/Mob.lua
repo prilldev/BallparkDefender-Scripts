@@ -17,6 +17,7 @@ function mob.Move(mob, map)
 	
 	--loop through all the waypoints 
 	for waypoint=1, #mobWaypoints:GetChildren() do
+		mob.MovingTo.Value = waypoint
 		mobHumanoid:MoveTo(mobWaypoints[waypoint].Position)
 		mobHumanoid.MoveToFinished:Wait()
 		
@@ -44,6 +45,10 @@ function mob.Spawn(name, quantity, map)
 			newMob.HumanoidRootPart.CFrame = map.MobPath.MobStartPoint.CFrame
 			newMob.Parent = workspace.Mobs
 			newMob.HumanoidRootPart:SetNetworkOwner(nil) --nil = Server
+			
+			local movingTo = Instance.new("IntValue")
+			movingTo.Name = "MovingTo"
+			movingTo.Parent = newMob
 			
 			--add ALL Mob parts to the "Mob" Collision Group
 			for i, object in ipairs(newMob:GetDescendants()) do

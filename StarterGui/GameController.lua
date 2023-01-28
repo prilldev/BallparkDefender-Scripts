@@ -20,6 +20,7 @@ local remoteFunctions = ReplicatedStorage:WaitForChild("Functions")
 local requestDefenderFunction = remoteFunctions:WaitForChild("RequestDefender")
 local spawnDefenderFunction = remoteFunctions:WaitForChild("SpawnDefender")
 local upgradeDefenderFunction = remoteFunctions:WaitForChild("UpgradeDefender")
+local changeTargetModeFunction = remoteFunctions:WaitForChild("ChangeTargetMode")
 
 -- Module references
 local rsModules = ReplicatedStorage:WaitForChild("Modules")
@@ -47,38 +48,6 @@ local defenderIsMoving = false
 local lastTouch = tick() -- for mobile support
 
 
--- ** Initial GUI Setup
-local function SetupGui()
-
-	-- attach "Health bar" guis to the Ballpark 
-	health.Setup(ballpark, gui.Info.Health)
-
-	-- attach "Health bar" guis to all the Mob "children" as they are added/spawned
-	workspace.Mobs.ChildAdded:Connect(function(mob)
-		health.Setup(mob)
-	end)
-
-	-- Connect "Changed" event of Info Message bar whenver Message changes
-	guiData.Message.Changed:Connect(function(change)
-		gui.Info.Message.Text = change
-		gui.Info.Message.Visible = not (guiData.Message.Value == "")
-	end)
-
-	-- Connect "Changed" event of Inning (Wave) Message bar each time Inning/Wave is changing
-	guiData.Inning.Changed:Connect(function(change)
-		gui.Info.Stats.Inning.Text = "Inning: " .. change
-	end)
-
-	-- Connect "Changed" even of playerGold to the Info bar's Gold text box
-	playerGold.Changed:Connect(function(change)
-		gui.Info.Stats.Gold.Text = "$" .. playerGold.Value
-	end)
-	-- Initialize Gold text box and beginning of the game
-	gui.Info.Stats.Gold.Text = "$" .. playerGold.Value
-
-end
-SetupGui() -- call above Setup function OnLoad of the Game
-
 -- Set Collision Group of all Parts of a Model
 function SetCollisionGroup(model: Model, cgroupName: string, objectTransparency: NumberValue)
 
@@ -89,7 +58,7 @@ function SetCollisionGroup(model: Model, cgroupName: string, objectTransparency:
 				if object.Name ~= "Range" then --if it's NOT a RangeCircle
 					object.Transparency = objectTransparency
 				end
-				
+
 			end
 		end
 	end	
@@ -114,7 +83,7 @@ local function CreateDefenderRangeCircle(defender, isPlaceholder)
 	--set Cframe to the Defender -- "offset" puts it to the ground, then "Angles" rotates 90 so it's flat on grand
 	p.CFrame = defender.PrimaryPart.CFrame * offset * CFrame.Angles(0, 0, math.rad(90)) 
 	p.CanCollide = false
-	
+
 	--When its a floating Placeholder Defender, Weld the Range Circle to the Defender so it moves with it
 	if isPlaceholder then
 		p.Anchored = false
@@ -138,6 +107,7 @@ local function RemovePlaceholderDefender()
 		spawnedDefender = nil
 		rotation = 0
 		defenderIsMoving = false
+		gui.Controls.Visible = false
 	end
 end
 
@@ -163,12 +133,13 @@ local function AddPlaceholderDefender(name)
 			warn(name .. " not found as a defender.")
 		end
 	end
-	
+
 
 	-- Set CollisionGroup of Defender Model
 	if spawnedDefender then
 		CreateDefenderRangeCircle(spawnedDefender, true)
 		SetCollisionGroup(spawnedDefender, "Defender", 0.5)
+		gui.Controls.Visible = true
 	end
 
 end
@@ -193,8 +164,8 @@ local function SpawnDefender()
 		local placedDefender = nil
 		local defenderToMove = nil -- NOTE: A defender Is Updating if they are Moving OR getting Equipped
 		print("Defender is moving: ", defenderIsMoving)
-		
-		
+
+
 		if defenderIsMoving == true then
 			defenderToMove = spawnedDefender
 			print("Defender being moved: ", defenderToMove)
@@ -221,11 +192,11 @@ local function SpawnDefender()
 
 			gui.LeftMenu.AddDefender.Title.Text = "Defender: " .. placedDefenderCt .. "/" .. maxDefenderCt
 			gui.SelectedDefender.Visible = false
-			
+
 			--make Def. Position's ForceField Cylinder smaller so Defender is selectable now that they're placed
 			local defPositionPlaced = map.DefPositions:FindFirstChild(bballPostion)
 			defPositionPlaced.Size = Vector3.new(2, 12, 12) 
-			
+
 		else
 			warn("Unable to place Defender - 'spawnDefender' remote function return false.")
 		end
@@ -248,53 +219,12 @@ gui.Info.Message.CloseMsgBtn.Activated:Connect(function()
 	gui.Info.Message.Visible = false
 end)
 
--- ** Setup/Populate "DefendersList" frame on the Left (invisible by default)
-for i, defender in pairs(squadFolder:GetChildren()) do
-	if defender:IsA("Model") then
-		local button = gui.DefendersList.TemplateButton:Clone()
-		local config = defender:WaitForChild("Config")
-		button.Name = defender.Name
-		button.Image = config.Icon.Texture
-		button.Visible = true
-		button.Price.Text = defender.Name .. " (" .. config.Price.Value .. ")"
-		button.LayoutOrder = config.Price.Value
-		button.Parent = gui.DefendersList
 
-		button.Activated:Connect(function()
-			spawnedDefender = nil
-			local defenderAllowed = {}
-			defenderAllowed = string.split(requestDefenderFunction:InvokeServer(defender.Name), "|")
-			print(defenderAllowed)
-
-			if defenderAllowed[1] == "Success" then
-
-				AddPlaceholderDefender(defender.Name)
-				gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
-				
-				---- If use selected a Defensive Position first, go ahead and Spawn the Defender in that position immediately
-				--if (selectedDefPosition and spawnedDefender) then
-				--	bballPostion = selectedDefPosition.Name
-				--	print("Selected Position for spawn:", selectedDefPosition.Name)
-				--	canPlace = true
-				--	SpawnDefender()
-				--end
-
-			else
-				gui.Info.Message.TextColor3 = Color3.new(1, 0, 0)
-			end
-			guiData.Message.Value = defenderAllowed[2]
-			gui.DefendersList.Visible = false
-		end)
-		--print("Squad Member added: ", defender.Name)
-
-	end
-
-end
 
 -- ** Toggle Defender Info when a Placed Defender is selected in the Game (not the DefendersList)
 local function ToggleDefenderInfo(defenderToShow: Model)
 	workspace.Camera:ClearAllChildren() --clean up Range circle(s) stored in "Camera"
-	
+
 	if not defenderToShow then
 		defenderToShow = selectedDefender
 	end
@@ -307,6 +237,20 @@ local function ToggleDefenderInfo(defenderToShow: Model)
 		gui.SelectedDefender.Stats.Rest.Value.Text = config.Cooldown.Value
 		gui.SelectedDefender.Title.DefenderName.Text = defenderToShow.Name
 		gui.SelectedDefender.Title.DefenderIcon.Image = config.Icon.Texture
+		gui.SelectedDefender.Title.OwnerName.Text = "Owner: " .. config.Owner.Value
+		
+		local targetModes = {
+			["Near"] = "rgb(85, 255, 0)",  --bright green
+			["First"] = "rgb(255, 255, 255)", --white
+			["Last"] = "rgb(128, 128, 128)",  --gray
+			["Strong"] = "rgb(255, 0, 0)",  --bright red
+			["Weak"] = "rgb(85, 170, 255)"  --sky blue
+		}
+		local modeColor = targetModes[config.TargetMode.Value]
+		gui.SelectedDefender.Action.TargetButton.Title.Text = "Target: <font color='" .. modeColor .. "'>" .. config.TargetMode.Value .. "</font>"
+		
+		-- Only show Action buttons if localPlayer is the Owner of the Defender
+		gui.SelectedDefender.Action.Visible = (config.Owner.Value == localPlayer.Name)
 
 	else
 		gui.SelectedDefender.Visible = false
@@ -319,79 +263,83 @@ end
 gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 	local msg: string = ""
 	if selectedDefender then
-		--gui.SelectedDefender.Visible = false --hide gui on click
-		gui.SelectedDefender.Upgrades.Visible = true
+		if selectedDefender.Config.Owner.Value == localPlayer.Name  then
+			--gui.SelectedDefender.Visible = false --hide gui on click
+			gui.SelectedDefender.Upgrades.Visible = true
 
-		--look for contents in the Selected Defender's Config.Weapons folder
-		local defenderWeapon = selectedDefender.Config.Weapon.Value
-		local weaponGroup = selectedDefender.Config.WeaponGroup.Value
+			--look for contents in the Selected Defender's Config.Weapons folder
+			local defenderWeapon = selectedDefender.Config.Weapon.Value
+			local weaponGroup = selectedDefender.Config.WeaponGroup.Value
 
-		local selDefName = string.split(selectedDefender.Name, "-")[1]
-		local selDefenderSource = ReplicatedStorage.Squad:FindFirstChild(selDefName)
-		local weaponGroupFolder = ReplicatedStorage.Weapons:FindFirstChild("Group" .. weaponGroup)	
-		local newWeaponFound = false
-		local currWeaponEquipOrder = nil
+			local selDefName = string.split(selectedDefender.Name, "-")[1]
+			local selDefenderSource = ReplicatedStorage.Squad:FindFirstChild(selDefName)
+			local weaponGroupFolder = ReplicatedStorage.Weapons:FindFirstChild("Group" .. weaponGroup)	
+			local newWeaponFound = false
+			local currWeaponEquipOrder = nil
 
-		if defenderWeapon then
-			local defenderWeaponSource = weaponGroupFolder:FindFirstChild(defenderWeapon.Name)
-			print("Current Weapon: " .. defenderWeaponSource.Config.WeaponName.Value)
-			currWeaponEquipOrder = defenderWeaponSource.Config.EquipOrder.Value
-		else
-			print("Defender has no weapon. Equip with first weapon in Group " .. weaponGroup)
-			currWeaponEquipOrder = 0
-		end
-
-		-- Clear previous Weapon Buttons that may exist before they're reloaded
-		for _, item in pairs(gui.SelectedDefender.Upgrades:GetChildren()) do
-			if item:IsA('ImageButton') and item.Name ~= "TemplateButton" then
-				item:Destroy()
+			if defenderWeapon then
+				local defenderWeaponSource = weaponGroupFolder:FindFirstChild(defenderWeapon.Name)
+				print("Current Weapon: " .. defenderWeaponSource.Config.WeaponName.Value)
+				currWeaponEquipOrder = defenderWeaponSource.Config.EquipOrder.Value
+			else
+				print("Defender has no weapon. Equip with first weapon in Group " .. weaponGroup)
+				currWeaponEquipOrder = 0
 			end
-		end
 
-		-- Loop through the available Weapons for the selected Defender's Weapon Group and add them as Buttons
-		for _, weapon in pairs(weaponGroupFolder:GetChildren()) do
-			local button = gui.SelectedDefender.Upgrades.TemplateButton:Clone()
-			local config = weapon:WaitForChild("Config")
-			button.Name = "Weapon" .. weapon.Config.EquipOrder.Value
-			button.ItemName.Text = weapon.Config.WeaponName.Value
-			button.Image = config.Icon.Texture
-			button.Visible = true
-			button.ItemPrice.Text = config.Cost.Value
-			button.LayoutOrder = weapon.Config.EquipOrder.Value
-			button.Parent = gui.SelectedDefender.Upgrades
-
-			-- Wire up each Weapon Button's Activated event
-			button.Activated:Connect(function()
-				local upgradedDefender = nil
-				
-				if weapon.Config.EquipOrder.Value == currWeaponEquipOrder + 1 then
-					--equipDefenderEvent:FireServer(selectedDefender, weapon)
-					local resultMessage: string = ""
-					upgradedDefender = upgradeDefenderFunction:InvokeServer(selectedDefender, weapon)
-					newWeaponFound = true
-					msg = upgradedDefender.Config.StatusMessage.Value
-					gui.SelectedDefender.Upgrades.Visible = false
-				else
-					msg = "Selected Weapon " .. weapon.Config.WeaponName.Value .. " is not the next upgrade for " .. selectedDefender.Name .. ", try again."
+			-- Clear previous Weapon Buttons that may exist before they're reloaded
+			for _, item in pairs(gui.SelectedDefender.Upgrades:GetChildren()) do
+				if item:IsA('ImageButton') and item.Name ~= "TemplateButton" then
+					item:Destroy()
 				end
+			end
 
-				if newWeaponFound == false and defenderWeapon then
-					msg = "No weapon upgrade for Defender " .. selectedDefender.Name .. " / Weapon: " .. defenderWeapon.Name .. "."
-					gui.SelectedDefender.Upgrades.Visible = false
-				else
-					if upgradedDefender then
-						ToggleDefenderInfo(upgradedDefender)
+			-- Loop through the available Weapons for the selected Defender's Weapon Group and add them as Buttons
+			for _, weapon in pairs(weaponGroupFolder:GetChildren()) do
+				local button = gui.SelectedDefender.Upgrades.TemplateButton:Clone()
+				local config = weapon:WaitForChild("Config")
+				button.Name = "Weapon" .. weapon.Config.EquipOrder.Value
+				button.ItemName.Text = weapon.Config.WeaponName.Value
+				button.Image = config.Icon.Texture
+				button.Visible = true
+				button.ItemPrice.Text = config.Cost.Value
+				button.LayoutOrder = weapon.Config.EquipOrder.Value
+				button.Parent = gui.SelectedDefender.Upgrades
+
+				-- Wire up each Weapon Button's Activated event
+				button.Activated:Connect(function()
+					local upgradedDefender = nil
+
+					if weapon.Config.EquipOrder.Value == currWeaponEquipOrder + 1 then
+						--equipDefenderEvent:FireServer(selectedDefender, weapon)
+						upgradedDefender = upgradeDefenderFunction:InvokeServer(selectedDefender, weapon)
+						newWeaponFound = true
+						msg = upgradedDefender.Config.StatusMessage.Value
+						gui.SelectedDefender.Upgrades.Visible = false
+					else
+						msg = "Selected Weapon " .. weapon.Config.WeaponName.Value .. " is not the next upgrade for " .. selectedDefender.Name .. ", try again."
 					end
-				end
 
-				if string.len(msg) > 0 then
-					print(msg)
-					guiData.Message.Value =  msg
-				end
-				
-				
+					if newWeaponFound == false and defenderWeapon then
+						msg = "No weapon upgrade for Defender " .. selectedDefender.Name .. " / Weapon: " .. defenderWeapon.Name .. "."
+						gui.SelectedDefender.Upgrades.Visible = false
+					else
+						if upgradedDefender then
+							ToggleDefenderInfo(upgradedDefender)
+						end
+					end
 
-			end)
+					if string.len(msg) > 0 then
+						print(msg)
+						guiData.Message.Value =  msg
+					end
+
+				end)		
+				
+			end
+			
+		else
+			guiData.Message = "You cannot upgrade/equip this Defender because you are it's Owner."
+
 		end
 
 	end
@@ -401,15 +349,35 @@ end)
 -- ** Selected Defender's Move button is Activated
 gui.SelectedDefender.Action.MoveButton.Activated:Connect(function()
 	if selectedDefender then
-		gui.SelectedDefender.Visible = false --hide gui on click
-		defenderIsMoving = true
-		AddPlaceholderDefender(selectedDefender.Name)	
+		if selectedDefender.Config.Owner.Value == localPlayer.Name then
+			gui.SelectedDefender.Visible = false --hide gui on click
+			defenderIsMoving = true
+			AddPlaceholderDefender(selectedDefender.Name)			
+		else
+			guiData.Message = "You cannot move this Defender because you are it's Owner."
+		end
 	end
 end)
 
 
+-- Target Button to change Selected Defender's TargetMode (Near, First, etc.)
+gui.SelectedDefender.Action.TargetButton.Activated:Connect(function()
+	if selectedDefender then
+		local targetModeChange = changeTargetModeFunction:InvokeServer(selectedDefender)
+		if targetModeChange then
+			-- do something
+			ToggleDefenderInfo()
+		end
+	end
+end)
+
+-- Wire up new Cancel button to call RemovePlaceholder function
+gui.Controls.CancelButton.Activated:Connect(RemovePlaceholderDefender)
+
+
 -- ***************************************************************************
 -- *******  IMPORTANT Re-Usable "GameControl" functions below ****************
+
 
 -- ** Mouse Raycast function (determines where mouse is in 3D on the screen... used for moving/placing Characters)
 -- ** (called by the RunService:RenderStepped event below)
@@ -452,6 +420,9 @@ UserInputService.InputBegan:Connect(function(input, processed)
 			--Right Mouse Click to Rotate the Defender Placeholder	
 		elseif input.KeyCode == Enum.KeyCode.R or input.UserInputType == Enum.UserInputType.MouseButton2 then
 			rotation += 90
+			
+		elseif input.KeyCode == Enum.KeyCode.X or Enum.KeyCode.Escape then
+			RemovePlaceholderDefender()
 		end
 
 	elseif hoveredInstance and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
@@ -466,7 +437,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 			defenderIsMoving = false
 		end
 		ToggleDefenderInfo()
-		
+
 
 	end
 
@@ -479,12 +450,12 @@ RunService.RenderStepped:Connect(function()
 	-- Get current 3D Raycast result (with a {table} of "blacklisted" items to ignore). 
 	-- In this case the translucent "spawnedDefender" object (Defender being placed) is ignored when it exists
 	local result = MouseRaycast({spawnedDefender})
-	
+
 	-- Result of object Mouse/Touch is currently hovering over
 	if result and result.Instance then
 		--print("Mouse currently over:", result.Instance.Name .. " Material = " .. result.Material.Name)
 		local resultInstanceName = result.Instance.Name
-		
+
 		-- Are we currently spawning/placing a Defender? 
 		-- If so ignore any other "hoveredInstance" determined in the "else" below >>
 		if spawnedDefender then
@@ -558,13 +529,13 @@ RunService.RenderStepped:Connect(function()
 
 				local cframe = CFrame.new(x, y, z) * CFrame.Angles(0, math.rad(rotation), 0)
 				spawnedDefender:SetPrimaryPartCFrame(cframe)	
-			
+
 			end
 
-			
-		-- ** Handle every Instance the mouse is currently "hovering" over when we're not spawning/placing a Defender
+
+			-- ** Handle every Instance the mouse is currently "hovering" over when we're not spawning/placing a Defender
 		elseif (gui.DefendersList.Visible == false and map.DefPositions:FindFirstChild(resultInstanceName)) then
-			
+
 			selectedDefPosition = map.DefPositions:FindFirstChild(resultInstanceName)
 			hoveredInstance = result.Instance 
 
@@ -580,5 +551,71 @@ RunService.RenderStepped:Connect(function()
 		selectedDefPosition = nil
 	end
 
-
 end)
+
+-- *** Initial GUI Setup
+local function SetupGui()
+
+	-- attach "Health bar" guis to the Ballpark 
+	health.Setup(ballpark, gui.Info.Health)
+
+	-- attach "Health bar" guis to all the Mob "children" as they are added/spawned
+	workspace.Mobs.ChildAdded:Connect(function(mob)
+		health.Setup(mob)
+	end)
+
+	-- Connect "Changed" event of Info Message bar whenver Message changes
+	guiData.Message.Changed:Connect(function(change)
+		gui.Info.Message.Text = change
+		gui.Info.Message.Visible = not (guiData.Message.Value == "")
+	end)
+
+	-- Connect "Changed" event of Inning (Wave) Message bar each time Inning/Wave is changing
+	guiData.Inning.Changed:Connect(function(change)
+		gui.Info.Stats.Inning.Text = "Inning: " .. change
+	end)
+
+	-- Connect "Changed" even of playerGold to the Info bar's Gold text box
+	playerGold.Changed:Connect(function(change)
+		gui.Info.Stats.Gold.Text = "$" .. playerGold.Value
+	end)
+	-- Initialize Gold text box and beginning of the game
+	gui.Info.Stats.Gold.Text = "$" .. playerGold.Value
+
+	-- ** Setup/Populate "DefendersList" frame on the Left (invisible by default)
+	for i, defender in pairs(squadFolder:GetChildren()) do
+		if defender:IsA("Model") then
+			local button = gui.DefendersList.TemplateButton:Clone()
+			local config = defender:WaitForChild("Config")
+			button.Name = defender.Name
+			button.Image = config.Icon.Texture
+			button.Visible = true
+			button.Price.Text = defender.Name .. " (" .. config.Price.Value .. ")"
+			button.LayoutOrder = config.Price.Value
+			button.Parent = gui.DefendersList
+
+			button.Activated:Connect(function()
+				spawnedDefender = nil
+				local defenderAllowed = {}
+				defenderAllowed = string.split(requestDefenderFunction:InvokeServer(defender.Name), "|")
+				print(defenderAllowed)
+
+				if defenderAllowed[1] == "Success" then
+
+					AddPlaceholderDefender(defender.Name)
+					gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
+
+				else
+					gui.Info.Message.TextColor3 = Color3.new(1, 0, 0)
+				end
+				guiData.Message.Value = defenderAllowed[2]
+				gui.DefendersList.Visible = false
+			end)
+			--print("Squad Member added: ", defender.Name)
+
+		end
+
+	end
+
+end
+SetupGui() -- call above Setup function OnLoad of the Game
