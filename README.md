@@ -1,12 +1,10 @@
-# Roblox-BallparkDefender
+# [Roblox-BallparkDefender](https://prilldev.github.io/Roblox-BallparkDefender/)
+
+> Developer: [Aaron Prill](https://prilldev.github.io/)
 
 ## Summary
 
 This repo serves as the backup location for the [Roblox game Ballpark Defender](https://roblox.com/games/12117545162/Ballpark-Defender) - a Tower Defense game I created with a baseball theme. Mobs invade a local ballpark and you have to strategically place 10 defenders and equip them with weapons to keep the ballpark from being destroyed. 
-
-## Technical Details
-
-[Roblox-BallparkDefender on Github](https://github.com/prilldev/Roblox-BallparkDefender).
 
 ### Credits
 
