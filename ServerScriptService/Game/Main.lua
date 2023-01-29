@@ -1,7 +1,9 @@
 -- Services
 local ServerScriptService = game:GetService("ServerScriptService")
+local Players = game:GetService("Players")
 
 -- Module Scripts
+local gamecontrol = require(ServerScriptService.Modules.GameControl)
 local mob = require(ServerScriptService.Modules.Mob)
 local defender = require(ServerScriptService.Modules.Defender)
 
@@ -15,6 +17,7 @@ local gameOver = false
 map.Ballpark.Humanoid.HealthChanged:Connect(function(health)
 	if health <= 0 then
 		gameOver = true
+		guiData.Message.Value = "GAME OVER"
 	end
 end)
 
@@ -27,58 +30,35 @@ for wave=1, 10 do
 	guiData.Inning.Value = wave
 	guiData.Message.Value = ""
 	
-	if wave <= 2 then
-		mob.Spawn("Zombie", 1 * wave, map)
-		task.wait(.25)
-		mob.Spawn("Zombie", 1 * wave, map)
-		task.wait(.25)
-		mob.Spawn("Zombie", 1 * wave, map)
-	elseif wave <= 4 then
-		for i=1,5 do
-			mob.Spawn("Zombie", wave, map)
-			mob.Spawn("Noob", wave, map)	
-		end		
-	elseif wave <= 7 then
-		for i=1,5 do
-			mob.Spawn("Zombie", wave, map)
-			mob.Spawn("Noob", wave, map)	
-			mob.Spawn("Mech", 2 * wave, map)	
-		end
-			
-		mob.Spawn("Teddy", 1 * wave, map)	
-		mob.Spawn("Mech", 2 * wave, map)	
-		mob.Spawn("Zombie", 3 * wave, map)	
-		mob.Spawn("Noob", 4 * wave, map)	
-	elseif wave <= 9 then
-		mob.Spawn("Noob", wave, map)	
-		mob.Spawn("Mech", 2 * wave, map)	
-		for i=1,5 do
-			mob.Spawn("Zombie", 0.5 * wave, map)	
-			mob.Spawn("Noob", 0.5 * wave, map)
-		end
-		mob.Spawn("Teddy", 1, map)
-	elseif wave == 10 then			
-		mob.Spawn("Zombie", 100, map)
-		for i=1, 5 do
-			mob.Spawn("Mech", 5, map)
-			mob.Spawn("Teddy", 1, map)
-			mob.Spawn("Zombie", 2, map)
-		end
-	end
+	gamecontrol.GetWave(wave, map)
 	
 	repeat
 		task.wait(1)
 	until #workspace.Mobs:GetChildren() == 0 or gameOver
 	
-	if gameOver then
-		guiData.Message.Value = "Game Over!"
+	if not gameOver and wave == 10 then
+		guiData.Message.Value = "VICTORY"
+	elseif not gameOver then
+		local reward = 50 * wave
+		for i, player in ipairs(Players:GetPlayers()) do
+			player.leaderstats.Gold.Value += reward -- Wave/Inning completion bonus
+		end
+		guiData.Message.Value = "Inning Reward: " .. reward
+		task.wait(2)
+		
+		for i=5, 0, -1 do
+			guiData.Message.Value = "Next Inning starting in..." .. i
+			task.wait(1)
+		end
+		
+	else
 		break
 	end
-	
-	for i=5, 0, -1 do
-		guiData.Message.Value = "Next Inning starting in..." .. i
-		task.wait(1)
-	end
+
+end
+
+if not gameOver then
+	guiData.Message.Value = "VICTORY"
 end
 
 

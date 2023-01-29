@@ -1,7 +1,37 @@
+-- Services
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
 
 local events = ReplicatedStorage:WaitForChild("Events")
 local animateDefenderEvent = events:WaitForChild("AnimateDefender")
+
+local function fireProjectile(defenderWeapon, target)
+	local projectile = Instance.new("Part")
+	--local distance = (defenderWeapon.Handle.Position - target.HumanoidRootPart.Position).Magnitude
+	--projectile.Size = Vector3.new(0.1, 0.1, distance)
+	--local offset = CFrame.new(0, 0, -distance/2)
+	----NOTE: Currently shooting from the Weapon's "Handle" .. TODO: Add a "BarrelPos" to all Weapons to use here >>
+	--projectile.CFrame = CFrame.new(defenderWeapon.Handle.Position, target.HumanoidRootPart.Position) * offset
+	projectile.Size = Vector3.new(1, 1, 1)
+	projectile.CFrame = defenderWeapon.Handle.CFrame
+	
+	projectile.Anchored = true
+	projectile.CanCollide = false
+	projectile.Transparency = 0.5
+	projectile.Parent = workspace.Camera
+	
+	local fireEffect = Instance.new("Fire")
+	fireEffect.Size = 2
+	fireEffect.Heat = 0.4
+	fireEffect.Color = defenderWeapon.Config.TrailColor.Value
+	fireEffect.Parent = projectile
+	
+	local projectileTween = TweenService:Create(projectile, TweenInfo.new(.5), {Position = target.HumanoidRootPart.Position})
+	projectileTween:Play()
+	Debris:AddItem(projectile, 0.5)
+	
+end
 
 local function setAnimation(object, animName)
 	local humanoid = object:WaitForChild("Humanoid")
@@ -50,6 +80,17 @@ workspace.Squad.ChildAdded:Connect(function(object)
 	playAnimation(object, "Idle")
 end)
 
-animateDefenderEvent.OnClientEvent:Connect(function(defender, animName)
+animateDefenderEvent.OnClientEvent:Connect(function(defender, animName, target)
 	playAnimation(defender, animName)
+	if target then
+		local defenderWeapon = defender.Config.Weapon.Value
+		if defenderWeapon then
+			if defenderWeapon.Config:FindFirstChild("TrailColor") then
+				fireProjectile(defenderWeapon, target)		
+			end
+			if defenderWeapon:FindFirstChild("Attack") then
+				defenderWeapon.Attack:Play()
+			end			
+		end
+	end
 end)

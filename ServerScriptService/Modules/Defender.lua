@@ -135,12 +135,13 @@ function defender.Attack(newDefender, player)
 		defender.FaceTarget(newDefender, target, 0.05)
 		
 		-- ATTACK!!  
-		animateDefenderEvent:FireAllClients(newDefender, "Attack")
+		animateDefenderEvent:FireAllClients(newDefender, "Attack", target)
 		target.Humanoid:TakeDamage(config.Damage.Value)
 		
 		--Has mob target been killed yet?
 		if (target.Humanoid.Health <= 0) then
 			player.leaderstats.Gold.Value += target.Humanoid.MaxHealth --Award player the MaxHealth of the mob target just killed
+			player.leaderstats.Kills.Value += 1
 		end
 		
 		task.wait(config.Cooldown.Value)

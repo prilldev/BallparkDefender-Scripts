@@ -9,8 +9,12 @@ Players.PlayerAdded:Connect(function(player)
 	
 	local gold = Instance.new("NumberValue")
 	gold.Name = "Gold"
-	gold.Value = 1000
+	gold.Value = 500
 	gold.Parent = leaderstats
+	
+	local kills = Instance.new("IntValue")
+	kills.Name = "Kills"
+	kills.Parent = leaderstats
 	
 	local placedDefenders = Instance.new("IntValue")
 	placedDefenders.Name = "PlacedDefenders"

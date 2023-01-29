@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 -- Player
 local localPlayer = Players.LocalPlayer
@@ -553,6 +554,34 @@ RunService.RenderStepped:Connect(function()
 
 end)
 
+
+local function DisplayEndScreen(status)
+	if status == "GAME OVER" then
+		gui.EndScreen.GameOver:Play()
+		gui.EndScreen.Content.Title.TextColor3 = Color3.new(1, 0, 0)
+		gui.EndScreen.ImageColor3 = Color3.new(0, 0, 0)
+		gui.EndScreen.Content.Subtitle.Text = "Ballpark Destroyed! Try again."
+	elseif status == "VICTORY" then
+		gui.EndScreen.Victory:Play()
+		gui.EndScreen.Content.Title.TextColor3 = Color3.new(0, 1, 0)
+		gui.EndScreen.ImageColor3 = Color3.new(0.6, 1, 0.4)
+		gui.EndScreen.Content.Subtitle.Text = "Ballpark Saved! Great job."
+	end
+	
+	gui.EndScreen.Content.Title.Text = status
+	gui.EndScreen.Stats.Innings.Text = "Innings: " .. workspace.GUIData.Inning.Value
+	gui.EndScreen.Stats.Gold.Text = "Gold: " .. localPlayer.leaderstats.Gold.Value
+	gui.EndScreen.Stats.Kills.Text = "Kills: " .. localPlayer.leaderstats.Kills.Value
+	
+	gui.EndScreen.Size = UDim2.new(0, 0, 0, 0)
+	gui.EndScreen.Visible = true
+	
+	local tweenStyle = TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, 0, false, 0)
+	local zoomTween = TweenService:Create(gui.EndScreen, tweenStyle, {Size = UDim2.new(1, 0, 1, 0)})
+	zoomTween:Play()
+	
+	
+end
 -- *** Initial GUI Setup
 local function SetupGui()
 
@@ -568,6 +597,9 @@ local function SetupGui()
 	guiData.Message.Changed:Connect(function(change)
 		gui.Info.Message.Text = change
 		gui.Info.Message.Visible = not (guiData.Message.Value == "")
+		if change == "VICTORY" or change == "GAME OVER" then
+			DisplayEndScreen(change)
+		end
 	end)
 
 	-- Connect "Changed" event of Inning (Wave) Message bar each time Inning/Wave is changing
