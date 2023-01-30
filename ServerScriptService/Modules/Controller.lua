@@ -1,8 +1,8 @@
 local mob = require(script.Parent.Mob)
 
-local gameControl = {}
+local controller = {}
 
-function gameControl.GetWave(wave, map)
+function controller.GetWave(wave, map)
 
 
 		if wave <= 2 then
@@ -46,4 +46,4 @@ function gameControl.GetWave(wave, map)
 		end
 end
 
-return gameControl
+return controller

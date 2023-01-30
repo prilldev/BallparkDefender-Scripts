@@ -16,6 +16,7 @@ local changeTargetModeFunc = remoteFunctions:WaitForChild("ChangeTargetMode")
 
 --Workspace variables
 local map = workspace.Maps.GrassLand
+local guiData = workspace.GUIData
 
 --Control variables
 local maxDefenderCt = 10
@@ -235,10 +236,10 @@ function defender.CheckSpawn(player, name)
 	
 	if defenderExists then
 		if defenderExists.Config.Price.Value <= player.leaderstats.Gold.Value then
-			if (player.PlacedDefenders.Value < maxDefenderCt) then
+			if (player.PlacedDefenders.Value < guiData.Inning.Value) then
 				resultMessage = "Success|Defender " .. name .. " selected for placement."
 			else
-				resultMessage = "Failure|Defender limit reached!"
+				resultMessage = "Failure|Defender limit reached (one allowed per Inning)!"
 			end
 		else
 			resultMessage = "Failure|Player cannot afford the Defender " .. name .. "."

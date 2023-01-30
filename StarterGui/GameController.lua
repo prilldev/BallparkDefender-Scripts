@@ -34,6 +34,9 @@ local gui = script.Parent.GameGui
 local map = workspace.Maps:WaitForChild("GrassLand")
 local ballpark = map:WaitForChild("Ballpark")
 local guiData = workspace:WaitForChild("GUIData")
+local msgGreenColor = Color3.fromHSV(0.309083, 0.771023, 0.839216) --soft green
+local msgRedColor = Color3.fromHSV(0.0140833, 0.639643, 0.870588) --soft red (salmon)
+
 
 -- Misc control variables
 local hoveredInstance = nil
@@ -108,7 +111,10 @@ local function RemovePlaceholderDefender()
 		spawnedDefender = nil
 		rotation = 0
 		defenderIsMoving = false
-		gui.Controls.Visible = false
+	end
+	gui.Controls.Visible = gui.SelectedDefender.Visible --keep cancel button visible if SelecteDefender frame is visible
+	if not gui.Controls.Visible then
+		camera.CameraType = "Custom"
 	end
 end
 
@@ -155,8 +161,100 @@ local function ColorPlaceholderDefender(color)
 end
 
 local function ToggleDefendersList()
+	gui.LeftMenu.AddDefender.Title.Text = "Defender: " .. placedDefenderCt .. "/" .. maxDefenderCt
 	gui.DefendersList.Visible = not gui.DefendersList.Visible
 
+end
+
+
+-- ** Toggle Defender Info when a Placed Defender is selected in the Game (not the DefendersList)
+local function ToggleDefenderInfo(defenderToShow: Model)
+	workspace.Camera:ClearAllChildren() --clean up Range circle(s) stored in "Camera"
+
+	if not defenderToShow then
+		defenderToShow = selectedDefender
+	end
+	if defenderToShow then
+		CreateDefenderRangeCircle(defenderToShow) -- Create a visual range circle around the Defender when it's selected (for visual feedback)
+		gui.SelectedDefender.Visible = true
+		local config = defenderToShow.Config
+		gui.SelectedDefender.Stats.Damage.Value.Text = config.Damage.Value
+		gui.SelectedDefender.Stats.Range.Value.Text = config.Range.Value
+		gui.SelectedDefender.Stats.Rest.Value.Text = config.Cooldown.Value
+		gui.SelectedDefender.Title.DefenderName.Text = defenderToShow.Name
+		gui.SelectedDefender.Title.DefenderIcon.Image = config.Icon.Texture
+		gui.SelectedDefender.Title.OwnerName.Text = "Owner: " .. config.Owner.Value
+
+		local targetModes = {
+			["Near"] = "rgb(85, 255, 0)",  --bright green
+			["First"] = "rgb(255, 255, 255)", --white
+			["Last"] = "rgb(128, 128, 128)",  --gray
+			["Strong"] = "rgb(255, 0, 0)",  --bright red
+			["Weak"] = "rgb(85, 170, 255)"  --sky blue
+		}
+		local modeColor = targetModes[config.TargetMode.Value]
+		gui.SelectedDefender.Action.TargetButton.Title.Text = "Target: <font color='" .. modeColor .. "'>" .. config.TargetMode.Value .. "</font>"
+
+		-- Only show Action buttons if localPlayer is the Owner of the Defender
+		gui.SelectedDefender.Action.Visible = (config.Owner.Value == localPlayer.Name)
+	else
+		gui.SelectedDefender.Visible = false
+		gui.Info.Message.Visible = false
+		camera.CameraType = "Custom"
+	end
+	gui.Controls.Visible = gui.SelectedDefender.Visible
+end
+
+local function LookAtTarget(character, target, moveCamera: boolean)
+	if character.PrimaryPart then --just make sure the character's HRP has loaded
+		local chrPos = character.PrimaryPart.CFrame.Position --get the position of the HRP
+		local tPos = target.PrimaryPart.CFrame.Position --get the position of the target
+		local modTPos = Vector3.new(tPos.X,chrPos.Y,tPos.X) --make a position at the target, but with the height of the character
+		local newCF = CFrame.new(chrPos, modTPos) --create our CFrame
+		
+		character:SetPrimaryPartCFrame(newCF) --set the HRP's CFrame to our result, thus moving the character!
+		
+		if (moveCamera) then
+			local newCamPosOffset = CFrame.new(5, 10, -20)
+
+			camera.CameraType = "Scriptable" --temporarily set camera to Scriptable so Script can move it to Look at Target...
+			camera:Interpolate(newCF * newCamPosOffset, target.PrimaryPart.CFrame, 1)
+			camera.InterpolationFinished:Connect(function()
+				--TODO?
+				gui.Controls.Visible = true
+			end)	
+		end
+		
+	else
+		warn("No Character/Primary Part.")
+	end
+end
+
+local function MoveCameraToTarget(target)
+
+	local newCamPosOffset = CFrame.new(5, 10, -20)
+
+	camera.CameraType = "Scriptable" --temporarily set camera to Scriptable so Script can move it to Look at Target...
+	--camera:Interpolate(newCF * newCamPosOffset, Target.PrimaryPart.CFrame, 2)
+		camera:Interpolate(target.PrimaryPart.CFrame * newCamPosOffset, target.PrimaryPart.CFrame, 1)
+	camera.InterpolationFinished:Connect(function()
+		--camera.CameraType = "Custom" --sets camera back to Custom so user can control it again
+		-- ** NOTE: Setting CameraType to "Custom" now takes place in the 'CancelButton.Activated' Event **
+	end)
+end
+
+function RemoveImageButtonFromList(buttonName, listObject)
+	print("Looking for button to remove:", buttonName)
+	local listItems = listObject:GetChildren()
+	
+	for _, object in ipairs(listItems) do
+		--print("Def. List Object Name:", object.Name .. " Object Class: " .. object.ClassName)
+		if object.ClassName == "ImageButton" and object.Name == buttonName then
+			object:Destroy()
+			print("Button removed:", buttonName)
+		end
+	end	
+	
 end
 
 -- ** Spawn the Defender that's currently in the "DefenderPlaceholder" (global 'spawnedDefender' object variable)
@@ -179,20 +277,23 @@ local function SpawnDefender()
 		if placedDefender then
 			if defenderToMove then
 				placedDefenderCt += 0 --just moving defender > DON'T increment counter
-				guiData.Message.Value = "Defender " .. spawnedDefender.Name .. " moved to " .. bballPostion .. "."
+				guiData.Message.Value = "Defender " .. placedDefender.Name .. " moved to " .. bballPostion .. "."
 			else
 				placedDefenderCt += 1 --new defender > increment counter
-				guiData.Message.Value = "Defender " .. spawnedDefender.Name .. " placed in " .. bballPostion .. "."
+				guiData.Message.Value = "Defender in place! Now select (+)Weapon to give  " .. placedDefender.Name .. " a fighting chance..."
+				
+				RemoveImageButtonFromList(placedDefender.Name:split("-")[1], gui.DefendersList)
 			end
-
+			LookAtTarget(localPlayer.Character, placedDefender, true)
+			MoveCameraToTarget(placedDefender)
+			
+			selectedDefender = placedDefender
+			ToggleDefenderInfo(placedDefender)
 			-- Removed the Moved Defender from their Previous Location
 			if defenderToMove then
 				defenderToMove:Destroy()
 				print("Defender Removed: ", defenderToMove.Name)
 			end
-
-			gui.LeftMenu.AddDefender.Title.Text = "Defender: " .. placedDefenderCt .. "/" .. maxDefenderCt
-			gui.SelectedDefender.Visible = false
 
 			--make Def. Position's ForceField Cylinder smaller so Defender is selectable now that they're placed
 			local defPositionPlaced = map.DefPositions:FindFirstChild(bballPostion)
@@ -222,42 +323,6 @@ end)
 
 
 
--- ** Toggle Defender Info when a Placed Defender is selected in the Game (not the DefendersList)
-local function ToggleDefenderInfo(defenderToShow: Model)
-	workspace.Camera:ClearAllChildren() --clean up Range circle(s) stored in "Camera"
-
-	if not defenderToShow then
-		defenderToShow = selectedDefender
-	end
-	if defenderToShow then
-		CreateDefenderRangeCircle(defenderToShow) -- Create a visual range circle around the Defender when it's selected (for visual feedback)
-		gui.SelectedDefender.Visible = true
-		local config = defenderToShow.Config
-		gui.SelectedDefender.Stats.Damage.Value.Text = config.Damage.Value
-		gui.SelectedDefender.Stats.Range.Value.Text = config.Range.Value
-		gui.SelectedDefender.Stats.Rest.Value.Text = config.Cooldown.Value
-		gui.SelectedDefender.Title.DefenderName.Text = defenderToShow.Name
-		gui.SelectedDefender.Title.DefenderIcon.Image = config.Icon.Texture
-		gui.SelectedDefender.Title.OwnerName.Text = "Owner: " .. config.Owner.Value
-		
-		local targetModes = {
-			["Near"] = "rgb(85, 255, 0)",  --bright green
-			["First"] = "rgb(255, 255, 255)", --white
-			["Last"] = "rgb(128, 128, 128)",  --gray
-			["Strong"] = "rgb(255, 0, 0)",  --bright red
-			["Weak"] = "rgb(85, 170, 255)"  --sky blue
-		}
-		local modeColor = targetModes[config.TargetMode.Value]
-		gui.SelectedDefender.Action.TargetButton.Title.Text = "Target: <font color='" .. modeColor .. "'>" .. config.TargetMode.Value .. "</font>"
-		
-		-- Only show Action buttons if localPlayer is the Owner of the Defender
-		gui.SelectedDefender.Action.Visible = (config.Owner.Value == localPlayer.Name)
-
-	else
-		gui.SelectedDefender.Visible = false
-		gui.Info.Message.Visible = false
-	end
-end
 
 
 -- ** Selected Defender's Equip/Upgrade Weapon button is Activated
@@ -319,10 +384,9 @@ gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 					else
 						msg = "Selected Weapon " .. weapon.Config.WeaponName.Value .. " is not the next upgrade for " .. selectedDefender.Name .. ", try again."
 					end
-
+					
 					if newWeaponFound == false and defenderWeapon then
 						msg = "No weapon upgrade for Defender " .. selectedDefender.Name .. " / Weapon: " .. defenderWeapon.Name .. "."
-						gui.SelectedDefender.Upgrades.Visible = false
 					else
 						if upgradedDefender then
 							ToggleDefenderInfo(upgradedDefender)
@@ -333,6 +397,10 @@ gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 						print(msg)
 						guiData.Message.Value =  msg
 					end
+					
+					--gui.SelectedDefender.Upgrades.Visible = false
+					--gui.SelectedDefender.Visible = false
+					gui.Controls.Visible = false
 
 				end)		
 				
@@ -353,7 +421,8 @@ gui.SelectedDefender.Action.MoveButton.Activated:Connect(function()
 		if selectedDefender.Config.Owner.Value == localPlayer.Name then
 			gui.SelectedDefender.Visible = false --hide gui on click
 			defenderIsMoving = true
-			AddPlaceholderDefender(selectedDefender.Name)			
+			AddPlaceholderDefender(selectedDefender.Name)	
+			camera.CameraType = "Custom"
 		else
 			guiData.Message = "You cannot move this Defender because you are it's Owner."
 		end
@@ -373,7 +442,12 @@ gui.SelectedDefender.Action.TargetButton.Activated:Connect(function()
 end)
 
 -- Wire up new Cancel button to call RemovePlaceholder function
-gui.Controls.CancelButton.Activated:Connect(RemovePlaceholderDefender)
+gui.Controls.CancelButton.Activated:Connect(function()
+	gui.SelectedDefender.Visible = false
+	selectedDefender = nil
+	RemovePlaceholderDefender()
+	camera.CameraType = "Custom"
+end)
 
 
 -- ***************************************************************************
@@ -432,6 +506,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		-- Selecting a Defender?
 		if model and model.Parent == workspace.Squad then -- Is the selected Instance a Model AND one of our Squad Defenders?
 			selectedDefender = model
+			MoveCameraToTarget(selectedDefender)
 			print(selectedDefender)
 		else
 			selectedDefender = nil
@@ -470,8 +545,12 @@ RunService.RenderStepped:Connect(function()
 				local posHasDefender = false -- Only one Defender allowed per defensive position on the field
 				local defenderAlreadyPlaced = false -- Specific Defender can only be placed once
 				local invalidDefPosition = false -- Special Defenders (ie "Coach" can only go to a specific position on the field)
+				local atMaxDefenderCount = false
 
 				local placedDefenders = workspace.Squad:GetChildren()
+				--Only ONE NEW Defender allowed per Inning
+				atMaxDefenderCount = (#placedDefenders >= guiData.Inning.Value and not defenderIsMoving)
+				
 				--EX: "Seb-CF" means player "Seb" was placed in Center Field already (see 'Defender' module script)
 				--Loop through currently placed Defenders ...
 				for _, pd in pairs(placedDefenders) do
@@ -493,14 +572,16 @@ RunService.RenderStepped:Connect(function()
 					invalidDefPosition = true
 				end
 
-				if posHasDefender or defenderAlreadyPlaced or invalidDefPosition then --Can't place Defender if another Defender is already there
+				if atMaxDefenderCount or posHasDefender or defenderAlreadyPlaced or invalidDefPosition then --Can't place Defender if another Defender is already there
 					-- INVALID Placement (turn red)
 					canPlace = false 
 					ColorPlaceholderDefender(Color3.new(1, 0, 0))
 
 					-- Tell User why they cant Place...
 					local cantPlaceMessage = ""
-					if posHasDefender then
+					if atMaxDefenderCount then
+						cantPlaceMessage = "Currently at Max Defenders (one defender allowed per inning)!"
+					elseif posHasDefender then
 						cantPlaceMessage = bballPostion .. " position already filled!"
 					elseif defenderAlreadyPlaced then
 						cantPlaceMessage = "Defender " .. spawnedDefender.Name .. " already on the field!"
@@ -509,13 +590,13 @@ RunService.RenderStepped:Connect(function()
 					end
 					print(cantPlaceMessage)
 					guiData.Message.Value = cantPlaceMessage
-					gui.Info.Message.TextColor3 = Color3.new(1, 0, 0)
+					--gui.Info.Message.TextColor3 = Color3.new(1, 0, 0)
 				else
 					-- Placement is valid! (turn green)
 					canPlace = true
 					ColorPlaceholderDefender(Color3.new(0, 1, 0))
 					guiData.Message.Value = ""
-					gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
+					--gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
 				end
 
 			else
@@ -635,13 +716,13 @@ local function SetupGui()
 				if defenderAllowed[1] == "Success" then
 
 					AddPlaceholderDefender(defender.Name)
-					gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
+					gui.Info.Message.TextColor3 = msgGreenColor
 
 				else
-					gui.Info.Message.TextColor3 = Color3.new(1, 0, 0)
+					gui.Info.Message.TextColor3 = msgRedColor
 				end
 				guiData.Message.Value = defenderAllowed[2]
-				gui.DefendersList.Visible = false
+				ToggleDefendersList()
 			end)
 			--print("Squad Member added: ", defender.Name)
 
