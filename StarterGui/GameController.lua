@@ -50,7 +50,7 @@ local placedDefenderCt = 0
 local maxDefenderCt = 10
 local defenderIsMoving = false
 local lastTouch = tick() -- for mobile support
-
+local isMobile = false
 
 -- Set Collision Group of all Parts of a Model
 function SetCollisionGroup(model: Model, cgroupName: string, objectTransparency: NumberValue)
@@ -170,7 +170,8 @@ end
 -- ** Toggle Defender Info when a Placed Defender is selected in the Game (not the DefendersList)
 local function ToggleDefenderInfo(defenderToShow: Model)
 	workspace.Camera:ClearAllChildren() --clean up Range circle(s) stored in "Camera"
-
+	gui.LeftMenu.AddDefender.Title.Text = "Defender: " .. placedDefenderCt .. "/" .. maxDefenderCt
+	
 	if not defenderToShow then
 		defenderToShow = selectedDefender
 	end
@@ -371,40 +372,45 @@ gui.SelectedDefender.Action.UpgradeButton.Activated:Connect(function()
 				button.LayoutOrder = weapon.Config.EquipOrder.Value
 				button.Parent = gui.SelectedDefender.Upgrades
 
-				-- Wire up each Weapon Button's Activated event
-				button.Activated:Connect(function()
-					local upgradedDefender = nil
-
-					if weapon.Config.EquipOrder.Value == currWeaponEquipOrder + 1 then
-						--equipDefenderEvent:FireServer(selectedDefender, weapon)
+				-- Wire up each Weapon Button's Activated event (if it's the next Weapon EquipOrder in the Group)
+				if weapon.Config.EquipOrder.Value == currWeaponEquipOrder + 1 then
+					-- Make sure button is "Enabled"
+					button.Active = true
+					button.AutoButtonColor = true
+					
+					-- *** Wire up the Weapon Button.Activated Event ***
+					button.Activated:Connect(function()
+						local upgradedDefender = nil
 						upgradedDefender = upgradeDefenderFunction:InvokeServer(selectedDefender, weapon)
 						newWeaponFound = true
 						msg = upgradedDefender.Config.StatusMessage.Value
 						gui.SelectedDefender.Upgrades.Visible = false
-					else
-						msg = "Selected Weapon " .. weapon.Config.WeaponName.Value .. " is not the next upgrade for " .. selectedDefender.Name .. ", try again."
-					end
-					
-					if newWeaponFound == false and defenderWeapon then
-						msg = "No weapon upgrade for Defender " .. selectedDefender.Name .. " / Weapon: " .. defenderWeapon.Name .. "."
-					else
-						if upgradedDefender then
-							ToggleDefenderInfo(upgradedDefender)
+						if newWeaponFound == false and defenderWeapon then
+							msg = "No weapon upgrade for Defender " .. selectedDefender.Name .. " / Weapon: " .. defenderWeapon.Name .. "."
+						else
+							if upgradedDefender then
+								ToggleDefenderInfo(upgradedDefender)
+							end
 						end
-					end
-
-					if string.len(msg) > 0 then
-						print(msg)
-						guiData.Message.Value =  msg
-					end
+						
+						if string.len(msg) > 0 then
+							print(msg)
+							guiData.Message.Value =  msg
+						end
+						-- Make sure "Cancel" button is hidden on Successful Weapon Upgrade/Equip
+						gui.Controls.Visible = false
+						
+					end)
 					
-					--gui.SelectedDefender.Upgrades.Visible = false
-					--gui.SelectedDefender.Visible = false
-					gui.Controls.Visible = false
-
-				end)		
+					
+				else
+					-- "Disable" the Weapon (Weapon is not current Upgrade)
+					button.Active = false
+					button.AutoButtonColor = false
+					
+				end
 				
-			end
+			end -- for loop
 			
 		else
 			guiData.Message = "You cannot upgrade/equip this Defender because you are it's Owner."
@@ -484,8 +490,11 @@ UserInputService.InputBegan:Connect(function(input, processed)
 
 			--Mobile support > double tap to place Defender
 		elseif input.UserInputType == Enum.UserInputType.Touch then
+			isMobile = true
+			
 			local timeBetweenTouches = tick() - lastTouch
 			print(timeBetweenTouches)
+			
 			if timeBetweenTouches <= 0.25 then
 				-- double tap (mobile)
 				SpawnDefender()
@@ -595,7 +604,11 @@ RunService.RenderStepped:Connect(function()
 					-- Placement is valid! (turn green)
 					canPlace = true
 					ColorPlaceholderDefender(Color3.new(0, 1, 0))
-					guiData.Message.Value = ""
+					if isMobile then
+						guiData.Message.Value = "Double tap a position circle to place defender"
+					else
+						guiData.Message.Value = "Click a position circle to place defender"
+					end
 					--gui.Info.Message.TextColor3 = Color3.new(0, 1, 0)
 				end
 

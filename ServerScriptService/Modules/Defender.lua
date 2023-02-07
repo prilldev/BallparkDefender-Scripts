@@ -22,6 +22,14 @@ local guiData = workspace.GUIData
 local maxDefenderCt = 10
 local defender = {}
 
+-- Kill award Table (amount of Gold) > NOTE: multipled by Inning so Award increases as game progresses
+local killAward = {			
+	["Zombie"] = 10,
+	["Noob"] = 15,
+	["Mech"] = 30,
+	["Teddy"] = 50
+}
+
 
 -- ****************************** --
 
@@ -141,7 +149,9 @@ function defender.Attack(newDefender, player)
 		
 		--Has mob target been killed yet?
 		if (target.Humanoid.Health <= 0) then
-			player.leaderstats.Gold.Value += target.Humanoid.MaxHealth --Award player the MaxHealth of the mob target just killed
+			local goldAwarded = killAward[target.Name] * guiData.Inning.Value
+			print("Gold Awarded = ", goldAwarded)
+			player.leaderstats.Gold.Value += goldAwarded -- target.Humanoid.MaxHealth --Award player the MaxHealth of the mob target just killed
 			player.leaderstats.Kills.Value += 1
 		end
 		
